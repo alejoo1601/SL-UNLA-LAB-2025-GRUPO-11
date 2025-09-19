@@ -1,3 +1,8 @@
 #ignorar entornos virtuales
 .venv/
 venv/
+
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
