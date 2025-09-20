@@ -52,7 +52,7 @@ def crear_persona(
 def listar_personas(db: Session = Depends(get_db)):
     return db.query(Persona).all()
 
-@app.put("/personas/{dni}", response_model=PersonaOut)
+@app.put("/personas/{dni}")
 def actualizar_persona(dni: int, payload: dict, db: Session = Depends(get_db)):
     p = db.query(Persona).filter(Persona.dni == dni).first()
     if not p:
