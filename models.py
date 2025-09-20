@@ -1,5 +1,6 @@
 from sqlalchemy import Column,Integer,String,Date,Boolean
 from database import engine,Base
+from datetime import date
 
 class Persona(Base):
     __tablename__ = "personas"
@@ -11,3 +12,11 @@ class Persona(Base):
     telefono = Column(String,nullable=False)
     fecha_Nacimiento = Column(Date,nullable=False)
     habilitado= Column(Boolean,default=True)
+
+ # EDAD por fecha de nacimiento
+    @property
+    def edad(self):
+        hoy = date.today()
+        return hoy.year - self.fecha_Nacimiento.year - (
+            (hoy.month, hoy.day) < (self.fecha_Nacimiento.month, self.fecha_Nacimiento.day)
+        )
