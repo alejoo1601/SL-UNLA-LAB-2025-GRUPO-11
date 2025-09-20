@@ -25,7 +25,7 @@ class EstadoTurno(str, enum.Enum):
     pendiente = "pendiente"
     cancelado = "cancelado"
     confirmado = "confirmado"
-    asistido   = "asistido"
+    asistido = "asistido"
 
 class Turno(Base):
     tablename = "turnos"
@@ -33,10 +33,10 @@ class Turno(Base):
         UniqueConstraint("fecha", "hora", name="uq_turno_fecha_hora"),
     )
 
-    id          = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    fecha       = Column(Date, nullable=False, index=True)
-    hora        = Column(Time, nullable=False, index=True)
-    estado      = Column(Enum(EstadoTurno), nullable=False, default=EstadoTurno.pendiente)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    fecha = Column(Date, nullable=False, index=True)
+    hora = Column(Time, nullable=False, index=True)
+    estado = Column(Enum(EstadoTurno), nullable=False, default=EstadoTurno.pendiente)
     persona_dni = Column(Integer, ForeignKey("personas.dni", ondelete="CASCADE"), nullable=False, index=True)
 
 #crea las tablas si no existen
