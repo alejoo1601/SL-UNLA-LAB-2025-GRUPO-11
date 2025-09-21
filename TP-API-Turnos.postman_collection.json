@@ -1,0 +1,164 @@
+{
+  "info": {
+    "name": "TP - Personas y Turnos",
+    "_postman_id": "a1111111-b222-4333-c444-555555555555",
+    "description": "Coleccion para probar el ABM de Personas, ABM de Turnos y turnos disponibles.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "dni",
+      "value": "11111111"
+    },
+    {
+      "key": "fecha_turno",
+      "value": "2025-09-21"
+    },
+    {
+      "key": "hora_turno",
+      "value": "10:30"
+    },
+    {
+      "key": "turno_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Personas",
+      "item": [
+        {
+          "name": "Crear persona",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base}}/personas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Carla Gómez\",\n  \"email\": \"carla.gomez@example.com\",\n  \"dni\": 11111111,\n  \"telefono\": \"1162223333\",\n  \"fecha_Nacimiento\": \"2000-01-01\",\n  \"habilitado\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar personas",
+          "request": {
+            "method": "GET",
+            "url": "{{base}}/personas"
+          }
+        },
+        {
+          "name": "Obtener persona por DNI",
+          "request": {
+            "method": "GET",
+            "url": "{{base}}/personas/{{dni}}"
+          }
+        },
+        {
+          "name": "Actualizar persona (Solo telefono)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base}}/personas/{{dni}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"1169998888\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar persona",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base}}/personas/{{dni}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Turnos",
+      "item": [
+        {
+          "name": "Crear turno",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base}}/turnos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha\": \"2025-09-21\",\n  \"hora\": \"10:30\",\n  \"estado\": \"pendiente\",\n  \"persona_dni\": 11111111\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar turnos",
+          "request": {
+            "method": "GET",
+            "url": "{{base}}/turnos"
+          }
+        },
+        {
+          "name": "Obtener turno por ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base}}/turnos/{{turno_id}}"
+          }
+        },
+        {
+          "name": "Actualizar turno (confirmacion)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base}}/turnos/{{turno_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"confirmado\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar turno",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base}}/turnos/{{turno_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5C - Turnos disponibles",
+      "item": [
+        {
+          "name": "Consultar turnos disponibles",
+          "request": {
+            "method": "GET",
+            "url": "{{base}}/turnos-disponibles?fecha={{fecha_turno}}"
+          }
+        }
+      ]
+    }
+  ]
+}
