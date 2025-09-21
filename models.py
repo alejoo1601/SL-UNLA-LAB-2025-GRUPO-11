@@ -2,9 +2,10 @@ from sqlalchemy import Column, Integer, String, Date, Boolean, Time, Enum, Forei
 from database import engine, Base
 from datetime import date
 import enum
-#creacion tabla persona
+
+# ---------- Modelos ----------
 class Persona(Base):
-    tablename = "personas"
+    __tablename__ = "personas"  
 
     dni = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
@@ -13,7 +14,7 @@ class Persona(Base):
     fecha_Nacimiento = Column(Date, nullable=False)
     habilitado = Column(Boolean, default=True, nullable=False)
 
-#calculo de edad segun fecha de nacimiento
+    # edad calculada
     @property
     def edad(self) -> int:
         hoy = date.today()
@@ -25,11 +26,11 @@ class EstadoTurno(str, enum.Enum):
     pendiente = "pendiente"
     cancelado = "cancelado"
     confirmado = "confirmado"
-    asistido = "asistido"
+    asistido   = "asistido"
 
 class Turno(Base):
-    tablename = "turnos"
-    table_args = (
+    __tablename__ = "turnos"  
+    __table_args__ = (        
         UniqueConstraint("fecha", "hora", name="uq_turno_fecha_hora"),
     )
 
@@ -39,9 +40,5 @@ class Turno(Base):
     estado = Column(Enum(EstadoTurno), nullable=False, default=EstadoTurno.pendiente)
     persona_dni = Column(Integer, ForeignKey("personas.dni", ondelete="CASCADE"), nullable=False, index=True)
 
-#crea las tablas si no existen
+# crea las tablas si no existen
 Base.metadata.create_all(bind=engine)
-
-
-
-    
