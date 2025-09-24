@@ -14,7 +14,7 @@ from models import Persona, Turno, EstadoTurno
 # crear tablas al iniciar
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="TP - Personas y Turnos", version="1.0.0")
+app = FastAPI(title="TP - Personas y Turnos", version="1.6")
 
 # Dependencia para manejar la sesión con la DB
 def get_db():
@@ -27,16 +27,38 @@ def get_db():
 # validador del email
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+SLOT_START = time_cls(9, 0)     # primer inicio permitido
+SLOT_END   = time_cls(17, 0)    # fin del día (último inicio será 16:30)
+SLOT_STEP_MIN = 30              # salto en minutos
+
 # Funciones auxiliares:
 def validar_email(email: str):
     if not EMAIL_RE.match(email or ""):
         raise HTTPException(status_code=422, detail="Email inválido (formato)")
 
+def validar_slot(t: time_cls):
+    #Pide minutos 00 o 30 y estar entre 09:00 y 16:30 inclusive.
+    if t.minute not in (0, 30) or t.second != 0 or t.microsecond != 0:
+        raise HTTPException(
+            status_code=422,
+            detail="La hora debe ser exacta cada 30 minutos (HH:00 o HH:30)."
+        )
+
+    last_start = (datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)).time()
+    if not (SLOT_START <= t <= last_start):
+        raise HTTPException(
+            status_code=422,
+            detail="Horario fuera de franja. Permitido: 09:00 a 16:30 inclusive, en pasos de 30'."
+        )
+
 def parse_hora(hhmm: str):
     try:
-        return datetime.strptime(hhmm, "%H:%M").time()
+        t = datetime.strptime(hhmm, "%H:%M").time()
     except ValueError:
         raise HTTPException(status_code=422, detail="Hora inválida, use HH:MM")
+    
+    validar_slot(t)
+    return t
 
 def get_persona_or_404(db: Session, dni: int) -> Persona:
     p = db.get(Persona, dni)
@@ -234,12 +256,12 @@ def actualizar_turno(id: int, payload: TurnoUpdate, db: Session = Depends(get_db
 
     # Validar colision al cambiar fecha o hora
     if nueva_fecha != t.fecha or nueva_hora != t.hora:
-        choque = db.query(Turno).filter(
+        colision = db.query(Turno).filter(
             Turno.fecha == nueva_fecha,
             Turno.hora == nueva_hora,
             Turno.id != id
         ).first()
-        if choque:
+        if colision:
             raise HTTPException(status_code=409, detail="Ese horario ya está ocupado")
 
     # Reasignacion de persona
@@ -265,28 +287,29 @@ def eliminar_turno(id: int, db: Session = Depends(get_db)):
     t = get_turno_or_404(db, id)
     db.delete(t)
     db.commit()
-    
+
 def generar_slots_30min():
     
-    #Genera los horarios desde 09:00 hasta 16:30 inclusive 
+    #Genera los horarios desde 09:00 hasta 16:30 inclusive
+    
     slots = []
-    h, m = 9, 0
+    h, m = SLOT_START.hour, SLOT_START.minute
+    last_start = (datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)).time()
+
     while True:
         slots.append(f"{h:02d}:{m:02d}")
-        # suma 30 min
-        m += 30
-        if m == 60:
-            m = 0
+        # avanzar 30 min
+        m += SLOT_STEP_MIN
+        if m >= 60:
+            m -= 60
             h += 1
-        # si el proximo inicio es 17:00, termina
-        if h == 17 and m == 0:
+        if time_cls(h, m) > last_start:
             break
     return slots
 
 @app.get("/turnos-disponibles")
 def turnos_disponibles(fecha: date, db: Session = Depends(get_db)) -> Dict[str, object]:
-    
-    #Devuelve los horarios disponibles
+    # Devuelve los horarios disponibles
     todos = set(generar_slots_30min())
 
     # ocupados = cualquiera que NO esté cancelado
