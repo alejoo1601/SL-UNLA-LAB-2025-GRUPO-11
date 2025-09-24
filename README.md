@@ -8,7 +8,7 @@ Integrantes Grupo 11:
 * Tomas Ezequiel Laruina Inchausti 
 
 Link video YouTube:
-https://youtu.be/QB9FKOyVHkU
+https://youtu.be/CxaVbo8jo28
 
 Link colleccion Postman:
 https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-60304d01-083a-4e7b-b5ca-cfa1125d8a0f?action=share&source=copy-link&creator=48622493
