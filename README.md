@@ -11,10 +11,35 @@ Link video YouTube:
 https://youtu.be/CxaVbo8jo28
 
 Link colleccion Postman:
-https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-60304d01-083a-4e7b-b5ca-cfa1125d8a0f?action=share&source=copy-link&creator=48622493
+https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-658b82bb-213c-4a71-ad05-8afb828158fd?action=share&source=copy-link&creator=48622493
 
 Link Repositorio Github:
 https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11
+
+Instrucciones para ejecutar el proyecto:
+
+* Clonar el repositorio:
+git clone https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11.git
+
+* Ingresar a la carpeta del proyecto:
+cd SL-UNLA-LAB-2025-GRUPO-11
+
+* Crear el entorno virtual:
+python -m venv venv
+
+* Activar el entorno virtual:
+En Windows: venv\Scripts\activate
+En Linux/Mac: source venv/bin/activate
+
+* Instalar las dependencias:
+pip install -r requirements.txt
+
+* Ejecutar la aplicación:
+uvicorn app:app --reload
+
+* Abrir en el navegador: http://127.0.0.1:8000/docs
+
+Endpoints:
 
 * Personas:
 1. POST /personas — Crear persona (Matias Torres de Lima y Alejo Tomas Machado Prieto)
@@ -74,4 +99,3 @@ https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11
     404: No encontrado
     409: Conflicto (unicidad de email/DNI o colisión fecha y hora)
     422: Regla de negocio / Validación (persona no habilitada, 5 cancelados/6 meses, formato hora/email)
-
