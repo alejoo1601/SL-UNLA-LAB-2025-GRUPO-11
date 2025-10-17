@@ -1,0 +1,357 @@
+{
+  "info": {
+    "name": "TP Personas y Turnos (FastAPI)",
+    "_postman_id": "3924b80a-2d80-4c33-b70b-51491f110e83",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección para testear la API del TP (Personas y Turnos). Usa {{base_url}} y variables de ejemplo."
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "dni_demo",
+      "value": "12345678"
+    },
+    {
+      "key": "email_demo",
+      "value": "ana@example.com"
+    },
+    {
+      "key": "telefono_demo",
+      "value": "1162223333"
+    },
+    {
+      "key": "hora_turno",
+      "value": "10:00"
+    },
+    {
+      "key": "fecha_turno",
+      "value": ""
+    },
+    {
+      "key": "turno_id",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Setear fecha_turno = mañana (YYYY-MM-DD) si está vacía",
+          "let ft = pm.collectionVariables.get('fecha_turno');",
+          "if (!ft) {",
+          "  const d = new Date();",
+          "  d.setDate(d.getDate() + 1);",
+          "  const yyyy = d.getFullYear();",
+          "  const mm = ('0' + (d.getMonth() + 1)).slice(-2);",
+          "  const dd = ('0' + d.getDate()).slice(-2);",
+          "  pm.collectionVariables.set('fecha_turno', `${yyyy}-${mm}-${dd}`);",
+          "}",
+          "// Asegurar hora_turno válida",
+          "if (!pm.collectionVariables.get('hora_turno')) {",
+          "  pm.collectionVariables.set('hora_turno', '10:00');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Personas",
+      "item": [
+        {
+          "name": "Crear Persona",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombre\": \"Ana Perez\", \"email\": \"{{email_demo}}\", \"dni\": \"{{dni_demo}}\", \"telefono\": \"{{telefono_demo}}\", \"fecha_Nacimiento\": \"2000-01-01\", \"habilitado\": true}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('JSON', function () { pm.response.to.be.json; });",
+                  "const json = pm.response.json();",
+                  "pm.test('Incluye edad', function(){ pm.expect(json).to.have.property('edad'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar Personas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/personas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('JSON', function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener Persona por DNI",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/personas/{{dni_demo}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas",
+                "{{dni_demo}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Actualizar Persona",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas/{{dni_demo}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas",
+                "{{dni_demo}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"telefono\": \"1169998888\", \"email\": \"ana.actualizada@example.com\"}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar Persona",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/personas/{{dni_demo}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas",
+                "{{dni_demo}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Turnos",
+      "item": [
+        {
+          "name": "Crear Turno",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/turnos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"fecha\": \"{{fecha_turno}}\", \"hora\": \"{{hora_turno}}\", \"estado\": \"pendiente\", \"persona_dni\": \"{{dni_demo}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json && json.id) { pm.collectionVariables.set('turno_id', json.id); }",
+                  "pm.test('Guardó turno_id', function () { pm.expect(pm.collectionVariables.get('turno_id')).to.exist; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar Turnos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/turnos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtrar Turnos por DNI",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/turnos?persona_dni={{dni_demo}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos"
+              ],
+              "query": [
+                {
+                  "key": "persona_dni",
+                  "value": "{{dni_demo}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Turno por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/turnos/{{turno_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos",
+                "{{turno_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Actualizar Turno",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/turnos/{{turno_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos",
+                "{{turno_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"estado\": \"confirmado\"}"
+            }
+          }
+        },
+        {
+          "name": "Eliminar Turno",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/turnos/{{turno_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos",
+                "{{turno_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Disponibilidad",
+      "item": [
+        {
+          "name": "Turnos Disponibles (fecha_turno)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/turnos-disponibles?fecha={{fecha_turno}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos-disponibles"
+              ],
+              "query": [
+                {
+                  "key": "fecha",
+                  "value": "{{fecha_turno}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
