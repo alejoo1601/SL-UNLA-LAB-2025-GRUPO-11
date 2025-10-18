@@ -8,16 +8,20 @@ Integrantes Grupo 11:
 * Tomas Ezequiel Laruina Inchausti 
 
 Link video YouTube:
+HITO 1:
 https://youtu.be/CxaVbo8jo28
 
+HITO 2:
+-----
+
 Link colleccion Postman:
-https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-658b82bb-213c-4a71-ad05-8afb828158fd?action=share&source=copy-link&creator=48622493
+https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-91306c23-5dfe-4490-a0f4-7dec93701107?action=share&source=copy-link&creator=48622493
 
 Link Repositorio Github:
 https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11
 
-Instrucciones para ejecutar el proyecto:
 
+Instrucciones para ejecutar el proyecto:
 * Clonar el repositorio:
 git clone https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11.git
 
@@ -80,14 +84,14 @@ Endpoints:
     200: turno.
     404: no existe.
 
-9. PUT /turnos/{id} — Actualizar turno (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+9. PUT /turnos/{id}/confirmar — Actualizar turno (confirmado) (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
     Reglas:
      * Si cambian fecha/hora, valida colisión (409).
      * Si cambian persona_dni, valida persona habilitada (422).
-    200: turno actualizado.
+    200: turno actualizado a confirmado.
     404: no existe.
 
-10. DELETE /turnos/{id} — Eliminar turno (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+10. DELETE /turnos/{id}/cancelar  — Eliminar turno (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
     204: eliminado.
     404: no existe.
 
@@ -99,3 +103,48 @@ Endpoints:
     404: No encontrado
     409: Conflicto (unicidad de email/DNI o colisión fecha y hora)
     422: Regla de negocio / Validación (persona no habilitada, 5 cancelados/6 meses, formato hora/email)
+
+* Gestión de estado de turno:
+12. PUT /turnos/{id}/cancelar — Cancelar turno (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Reglas:
+    * No se puede cancelar un turno asistido (422).
+    * Si el turno ya está cancelado, el endpoint es idempotente: devuelve el turno tal cual.
+    Respuestas:
+    200: turno (id, fecha, hora, estado, persona_dni).
+    404: turno inexistente.
+    422: “No se puede cancelar un turno asistido”. 
+
+13. PUT /turnos/{id}/confirmar — Confirmar turno (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Reglas:
+    * No se puede confirmar si el turno está asistido o cancelado (422).
+    * Si ya estaba confirmado, es idempotente: devuelve el turno tal cual.
+    Respuestas:
+    200: turno (id, fecha, hora, estado, persona_dni).
+    404: turno inexistente.
+    422: “No se puede confirmar un turno asistido o cancelado”. 
+
+* Reportes:
+14. GET /reportes/turnos-por-fecha — Turnos de una fecha (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: fecha (YYYY-MM-DD, requerido)
+    200: OK
+    404: si no hay turnos devuelve lista vacía
+
+15. GET /reportes/turnos-por-persona — Turnos por DNI (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: dni (int, requerido)
+    200: OK
+    404: no existe el dni.
+    
+16. GET /reportes/turnos-cancelados-por-mes — Cancelados en el mes actual (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    200: OK
+
+17. GET /reportes/turnos-cancelados — Personas con N o más cancelados (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    200: OK
+
+18. GET /reportes/turnos-confirmados — Confirmados por rango (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Query: desde (YYYY-MM-DD, req.), hasta (YYYY-MM-DD, req.), page (int, default 1; tamaño de página=5)
+    200: OK
+    404: Rango de fechas inválido.
+
+19. GET /reportes/estado-personas — Personas habilitadas / inhabilitadas (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: habilitada (bool, requerido: true o false)
+    200: OK

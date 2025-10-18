@@ -1,8 +1,7 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 from models import EstadoTurno
-from typing import List
 
 class PersonaIn(BaseModel):
     nombre: str = Field(min_length=1)
@@ -24,14 +23,15 @@ class PersonaOut(PersonaIn):
 
 class TurnoIn(BaseModel):
     fecha: date
-    hora: str                     
+    hora: str
     estado: Optional[EstadoTurno] = EstadoTurno.pendiente
-    persona_dni: int              
+    persona_dni: int
 
 class TurnoUpdate(BaseModel):
     fecha: Optional[date] = None
-    hora: Optional[str] = None    
-    persona_dni: Optional[int] = None  
+    hora: Optional[str] = None
+    estado: Optional[EstadoTurno] = None 
+    persona_dni: Optional[int] = None
 
 class TurnoOut(BaseModel):
     id: int
@@ -39,7 +39,6 @@ class TurnoOut(BaseModel):
     hora: str
     estado: EstadoTurno
     persona_dni: int
-
 
 class TurnosDisponiblesOut(BaseModel):
     fecha: str
