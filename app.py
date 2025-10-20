@@ -423,3 +423,109 @@ def reportes_cancelados_mes_actual(db: Session = Depends(get_db)):
         "resumen_por_fecha": [{"fecha": f.isoformat(), "cantidad": c} for (f, c) in resumen],
         "turnos": detalle
     }
+
+
+
+
+# 17. 
+@app.get("/reportes/turnos-cancelados")
+def reportes_personas_con_cancelados(min: int = 5, db: Session = Depends(get_db)):
+    conteos = db.query(
+        Turno.persona_id,
+        func.count(Turno.id).label("cancelados")
+    ).filter(
+        Turno.estado == EstadoTurno.cancelado
+    ).group_by(Turno.persona_id).having(func.count(Turno.id) >= min).all()
+
+    salida = []
+    for persona_id, cantidad in conteos:
+        p = db.query(Persona).filter(Persona.id == persona_id).first()
+        cancelados = db.query(Turno).filter(
+            Turno.persona_id == persona_id,
+            Turno.estado == EstadoTurno.cancelado
+        ).order_by(Turno.fecha.desc(), Turno.hora.desc()).all()
+
+        detalle = []
+        for t in cancelados:
+            detalle.append({
+                "id": t.id,
+                "fecha": t.fecha,
+                "hora": t.hora.strftime("%H:%M"),
+                "estado": t.estado
+            })
+
+        salida.append({
+            "persona": {"dni": p.dni, "nombre": p.nombre},
+            "cancelados": cantidad,
+            "turnos": detalle
+        })
+
+    return {"min_cancelados": min, "personas": salida}
+
+
+
+# 18. 
+@app.get("/reportes/turnos-confirmados")
+def reportes_turnos_confirmados(desde: date, hasta: date, page: int = 1, db: Session = Depends(get_db)):
+    if desde > hasta:
+        raise HTTPException(
+            status_code=400,
+            detail="Rango de fechas inválido: 'desde' debe ser anterior o igual a 'hasta'."
+        )
+
+    if page < 1:
+        page = 1
+
+    page_size = 5
+
+    q = db.query(Turno).filter(
+        Turno.estado == EstadoTurno.confirmado,
+        Turno.fecha >= desde,
+        Turno.fecha <= hasta
+    ).order_by(Turno.fecha.asc(), Turno.hora.asc())
+
+    total = q.count()
+    items = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    resultado = []
+    for t in items:
+        resultado.append({
+            "id": t.id,
+            "fecha": t.fecha,
+            "hora": t.hora.strftime("%H:%M"),
+            "persona_dni": t.persona.dni
+        })
+
+    total_pages = (total + page_size - 1) // page_size
+
+    return {
+        "desde": desde.isoformat(),
+        "hasta": hasta.isoformat(),
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "items": resultado
+    }
+
+
+
+# 19. 
+@app.get("/reportes/estado-personas")
+def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
+    personas = db.query(Persona).filter(Persona.habilitado == habilitada).order_by(Persona.nombre.asc()).all()
+    salida = []
+    for p in personas:
+        salida.append({
+            "dni": p.dni,
+            "nombre": p.nombre,
+            "email": p.email,
+            "telefono": p.telefono,
+            "habilitado": p.habilitado
+        })
+    return {"habilitada": habilitada, "personas": salida}
+
+
+
+
+
