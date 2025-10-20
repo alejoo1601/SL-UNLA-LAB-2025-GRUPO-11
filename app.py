@@ -336,6 +336,35 @@ def cancelar_turno(turno_id: int, db: Session = Depends(get_db)):
         "persona_dni": t.persona.dni
     }
 
+# 13.
+@app.put("/turnos/{turno_id}/confirmar", response_model=TurnoOut)
+def confirmar_turno(turno_id: int, db: Session = Depends(get_db)):
+    t = turno_o_404(db, turno_id)
+
+    if t.estado in (EstadoTurno.asistido, EstadoTurno.cancelado):
+        raise HTTPException(status_code=422, detail="No se puede confirmar un turno asistido o cancelado")
+
+    if t.estado == EstadoTurno.confirmado:
+        return {
+            "id": t.id,
+            "fecha": t.fecha,
+            "hora": t.hora.strftime("%H:%M"),
+            "estado": t.estado,
+            "persona_dni": t.persona.dni
+        }
+
+    t.estado = EstadoTurno.confirmado
+    db.commit()
+    db.refresh(t)
+
+    return {
+        "id": t.id,
+        "fecha": t.fecha,
+        "hora": t.hora.strftime("%H:%M"),
+        "estado": t.estado,
+        "persona_dni": t.persona.dni
+    }
+
 # REPORTES
 # 14. 
 @app.get("/reportes/turnos-por-fecha")
@@ -424,9 +453,6 @@ def reportes_cancelados_mes_actual(db: Session = Depends(get_db)):
         "turnos": detalle
     }
 
-
-
-
 # 17. 
 @app.get("/reportes/turnos-cancelados")
 def reportes_personas_con_cancelados(min: int = 5, db: Session = Depends(get_db)):
@@ -461,8 +487,6 @@ def reportes_personas_con_cancelados(min: int = 5, db: Session = Depends(get_db)
         })
 
     return {"min_cancelados": min, "personas": salida}
-
-
 
 # 18. 
 @app.get("/reportes/turnos-confirmados")
@@ -508,8 +532,6 @@ def reportes_turnos_confirmados(desde: date, hasta: date, page: int = 1, db: Ses
         "items": resultado
     }
 
-
-
 # 19. 
 @app.get("/reportes/estado-personas")
 def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
@@ -524,8 +546,3 @@ def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
             "habilitado": p.habilitado
         })
     return {"habilitada": habilitada, "personas": salida}
-
-
-
-
-
