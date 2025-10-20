@@ -336,6 +336,90 @@ def cancelar_turno(turno_id: int, db: Session = Depends(get_db)):
         "persona_dni": t.persona.dni
     }
 
+# REPORTES
+# 14. 
+@app.get("/reportes/turnos-por-fecha")
+def reportes_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
+    turnos = db.query(Turno).filter(Turno.fecha == fecha).order_by(Turno.hora.asc()).all()
+    resultado = []
+    for t in turnos:
+        resultado.append({
+            "id": t.id,
+            "fecha": t.fecha,
+            "hora": t.hora.strftime("%H:%M"),
+            "estado": t.estado,
+            "persona_dni": t.persona.dni,
+            "persona_nombre": t.persona.nombre
+        })
+    return {"fecha": fecha.isoformat(), "turnos": resultado}
 
+# 15. 
+@app.get("/reportes/turnos-por-persona")
+def reportes_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
+    persona = db.query(Persona).filter(Persona.dni == dni).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
 
+    turnos = (
+        db.query(Turno)
+        .filter(Turno.persona_id == persona.id)
+        .order_by(Turno.fecha.desc(), Turno.hora.desc())
+        .all()
+    )
 
+    resultado = []
+    for t in turnos:
+        resultado.append({
+            "id": t.id,
+            "fecha": t.fecha,
+            "hora": t.hora.strftime("%H:%M"),
+            "estado": t.estado,
+        })
+
+    return {
+        "persona": {"dni": persona.dni, "nombre": persona.nombre},
+        "turnos": resultado
+    }
+
+# 16. 
+@app.get("/reportes/turnos-cancelados-por-mes")
+def reportes_cancelados_mes_actual(db: Session = Depends(get_db)):
+    hoy = date.today()
+    anio, mes = hoy.year, hoy.month
+    primer_dia = date(anio, mes, 1)
+    ultimo_dia = date(anio, mes, calendar.monthrange(anio, mes)[1])
+
+    turnos = db.query(Turno).filter(
+        Turno.estado == EstadoTurno.cancelado,
+        Turno.fecha >= primer_dia,
+        Turno.fecha <= ultimo_dia
+    ).order_by(Turno.fecha.asc(), Turno.hora.asc()).all()
+
+    detalle = []
+    for t in turnos:
+        detalle.append({
+            "id": t.id,
+            "persona_dni": t.persona.dni,
+            "fecha": t.fecha,
+            "hora": t.hora.strftime("%H:%M"),
+            "estado": t.estado
+        })
+
+    resumen = db.query(
+        Turno.fecha,
+        func.count(Turno.id)
+    ).filter(
+        Turno.estado == EstadoTurno.cancelado,
+        Turno.fecha >= primer_dia,
+        Turno.fecha <= ultimo_dia
+    ).group_by(Turno.fecha).order_by(Turno.fecha.asc()).all()
+
+    meses_es = ["", "enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
+
+    return {
+        "anio": anio,
+        "mes": meses_es[mes],
+        "cantidad": len(detalle),
+        "resumen_por_fecha": [{"fecha": f.isoformat(), "cantidad": c} for (f, c) in resumen],
+        "turnos": detalle
+    }
