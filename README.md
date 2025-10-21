@@ -12,10 +12,10 @@ HITO 1:
 https://youtu.be/CxaVbo8jo28
 
 HITO 2:
------
+https://youtu.be/NWY2hYGvF7o
 
 Link colleccion Postman:
-https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-91306c23-5dfe-4490-a0f4-7dec93701107?action=share&source=copy-link&creator=48622493
+https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-7e84dbbc-d94c-4756-9084-26d7214c8355?action=share&source=copy-link&creator=48622493
 
 Link Repositorio Github:
 https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11
