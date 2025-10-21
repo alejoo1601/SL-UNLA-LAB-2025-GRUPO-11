@@ -368,19 +368,54 @@ def confirmar_turno(turno_id: int, db: Session = Depends(get_db)):
 # REPORTES
 # 14. 
 @app.get("/reportes/turnos-por-fecha")
-def reportes_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
-    turnos = db.query(Turno).filter(Turno.fecha == fecha).order_by(Turno.hora.asc()).all()
-    resultado = []
+def reportes_turnos_por_fecha(fecha: date, agrupado: bool = True, db: Session = Depends(get_db)):
+    turnos = (
+        db.query(Turno)
+        .join(Persona)  
+        .filter(Turno.fecha == fecha)
+        .order_by(Persona.nombre.asc(), Turno.hora.asc())
+        .all()
+    )
+    if not agrupado:
+        return {
+            "fecha": fecha.isoformat(),
+            "turnos": [
+                {
+                    "id": t.id,
+                    "fecha": t.fecha,
+                    "hora": t.hora.strftime("%H:%M"),
+                    "estado": t.estado,
+                    "persona_dni": t.persona.dni,
+                    "persona_nombre": t.persona.nombre,
+                }
+                for t in turnos
+            ],
+        }
+    personas = []
+    persona_actual = None
+    lista_actual = None
+
     for t in turnos:
-        resultado.append({
+        clave = (t.persona.dni, t.persona.nombre)
+        if persona_actual != clave:
+            persona_actual = clave
+            lista_actual = []
+            personas.append({
+                "dni": clave[0],
+                "nombre": clave[1],
+                "turnos": lista_actual
+            })
+
+        lista_actual.append({
             "id": t.id,
-            "fecha": t.fecha,
             "hora": t.hora.strftime("%H:%M"),
-            "estado": t.estado,
-            "persona_dni": t.persona.dni,
-            "persona_nombre": t.persona.nombre
+            "estado": t.estado
         })
-    return {"fecha": fecha.isoformat(), "turnos": resultado}
+
+    return {
+        "fecha": fecha.isoformat(),
+        "personas": personas
+    }
 
 # 15. 
 @app.get("/reportes/turnos-por-persona")
