@@ -4,7 +4,15 @@ from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from BaseDatos.database import SessionLocal
-from Modelos.models import Persona, Turno, EstadoTurno
+from Modelos.models import Persona, Turno
+
+from borb.pdf import SingleColumnLayout
+from borb.pdf import Document
+from borb.pdf.page.page import Page
+from borb.pdf.pdf import PDF
+from borb.pdf.canvas.layout.text.paragraph import Paragraph
+from borb.pdf.canvas.layout.table.fixed_column_width_table import FixedColumnWidthTable
+from borb.pdf.canvas.layout.table.table import TableCell
 
 def get_db():
     db = SessionLocal()
@@ -68,3 +76,31 @@ def turno_o_404(db: Session, turno_id: int) -> Turno:
     if not t:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     return t
+
+def escribir_lineas_en_pdf(columnas, filas, ruta):
+
+    try:
+        doc = Document()
+        page = Page()
+        doc.add_page(page)
+
+        layout = SingleColumnLayout(page)
+
+        tabla = FixedColumnWidthTable(number_of_columns=len(columnas), number_of_rows=len(filas) + 1)
+
+        # Columnas
+        for c in columnas:
+            tabla.add(TableCell(Paragraph(str(c))))
+
+        # Filas
+        for fila in filas:
+            for valor in fila:
+                tabla.add(TableCell(Paragraph(str(valor))))
+
+        layout.add(tabla)
+
+        with open(ruta, "wb") as pdf_file:
+            PDF.dumps(pdf_file, doc)
+
+    except Exception as e:
+        raise RuntimeError(f"Error generando PDF con tabla: {e}")

@@ -10,10 +10,15 @@ from Modelos.models import Persona, Turno, EstadoTurno
 from Esquemas.schemas import (PersonaIn, PersonaUpdate, PersonaOut,
 TurnoIn, TurnoUpdate, TurnoOut, TurnosDisponiblesOut,)
 
-from Utilidades.utils import (get_db, validar_email, parsear_hora,SLOTS_FIJOS,
- persona_por_dni_o_404, turno_o_404)
+from Utilidades.utils import (get_db, validar_email, parsear_hora,SLOTS_FIJOS)
 
-app = FastAPI(title="TP Grupo 11", version="1.6")
+import os
+import pandas as pd
+from fastapi.responses import FileResponse
+from datetime import date
+from Utilidades.utils import escribir_lineas_en_pdf
+
+app = FastAPI(title="TP Grupo 11", version="1.8.1")
 
 # PERSONAS
 # 1.
@@ -807,5 +812,351 @@ def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
 
     except HTTPException as e:
         raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+# Reportes CSV
+# 20.
+@app.get("/reportes/turnos-por-persona-csv")
+def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)):
+    try:
+        try:
+            persona = db.query(Persona).filter(Persona.dni == dni).first()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}")
+
+        if not persona:
+            raise HTTPException(status_code=404, detail="Persona no encontrada")
+
+        try:
+            turnos = (
+                db.query(Turno)
+                .filter(Turno.persona_id == persona.id)
+                .order_by(Turno.fecha.desc(), Turno.hora.desc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+        filas = []
+        for t in turnos:
+            filas.append({
+                "id": t.id,
+                "fecha": t.fecha.isoformat(),
+                "hora": t.hora.strftime("%H:%M"),
+                "estado": t.estado.value,
+            })
+
+        df = pd.DataFrame(filas)
+
+        os.makedirs("CSV", exist_ok=True)
+        archivo = os.path.join("CSV", f"turnos_{persona.nombre}.csv")
+        df.to_csv(archivo, sep=";", index=False)
+
+        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{persona.nombre}.csv")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 21.
+@app.get("/reportes/turnos-por-fecha-csv")
+def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)):
+    try:
+        try:
+            turnos = (
+                db.query(Turno)
+                .join(Persona)
+                .filter(Turno.fecha == fecha)
+                .order_by(Persona.nombre.asc(), Turno.hora.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+        filas = []
+        for t in turnos:
+            filas.append({
+                "dni_persona": t.persona.dni,
+                "nombre": t.persona.nombre,
+                "id_turno": t.id,
+                "hora": t.hora.strftime("%H:%M"),
+                "estado": t.estado.value,
+            })
+
+        df = pd.DataFrame(filas)
+
+        os.makedirs("CSV", exist_ok=True)
+        archivo = os.path.join("CSV", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv")
+        df.to_csv(archivo, sep=";", index=False)
+
+        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 22.
+@app.get("/reportes/turnos-cancelados-mes-actual-csv")
+def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)):
+    try:
+        hoy = date.today()
+        inicio = hoy.replace(day=1)
+        fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
+            year=inicio.year + 1, month=1
+        )
+
+        try:
+            turnos = (
+                db.query(Turno)
+                .filter(
+                    Turno.estado == EstadoTurno.cancelado,
+                    Turno.fecha >= inicio,
+                    Turno.fecha < fin
+                )
+                .order_by(Turno.fecha.asc(), Turno.hora.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+        filas = []
+        for t in turnos:
+            filas.append({
+                "id": t.id,
+                "dni_persona": t.persona.dni,
+                "fecha": t.fecha.isoformat(),
+                "hora": t.hora.strftime("%H:%M"),
+            })
+
+        df = pd.DataFrame(filas)
+
+        os.makedirs("CSV", exist_ok=True)
+        archivo = os.path.join("CSV", "turnos_cancelados_mes_actual.csv")
+        df.to_csv(archivo, sep=";", index=False)
+
+        return FileResponse(archivo, media_type="text/csv", filename="turnos_cancelados_mes_actual.csv")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 23.
+@app.get("/reportes/estado-personas-habilitadas-csv")
+def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_db)):
+    try:
+        try:
+            personas = (
+                db.query(Persona)
+                .filter(Persona.habilitado == habilitada)
+                .order_by(Persona.id.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}")
+
+        filas = []
+        for p in personas:
+            filas.append({
+                "dni": p.dni,
+                "nombre": p.nombre,
+                "email": p.email,
+                "telefono": p.telefono,
+                "habilitado": p.habilitado,
+            })
+
+        df = pd.DataFrame(filas)
+
+        os.makedirs("CSV", exist_ok=True)
+        archivo = os.path.join("CSV", "estado_personas_habilitadas.csv")
+        df.to_csv(archivo, sep=";", index=False)
+
+        return FileResponse(archivo, media_type="text/csv", filename="estado_personas_habilitadas.csv")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+    
+
+
+#Reportes PDF
+# 24.
+@app.get("/reportes/turnos-por-persona-pdf")
+def turnos_por_persona_pdf(dni: int, db: Session = Depends(get_db)):
+    try:
+      
+        try:
+            persona = db.query(Persona).filter(Persona.dni == dni).first()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}")
+
+        if not persona:
+            raise HTTPException(status_code=404, detail="Persona no encontrada")
+
+      
+        try:
+            turnos = (
+                db.query(Turno)
+                .filter(Turno.persona_id == persona.id)
+                .order_by(Turno.fecha.desc(), Turno.hora.desc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+       
+        titulo = f"{persona.nombre} DNI: {persona.dni}"
+        columnas = ["ID", "Fecha", "Hora", "Estado"]
+
+        filas = []
+
+        filas.append([titulo, "", "", ""])
+
+        for t in turnos:
+            filas.append([
+                t.id,
+                t.fecha,
+                t.hora.strftime("%H:%M"),
+                t.estado.value,
+            ])
+
+        os.makedirs("PDF", exist_ok=True)
+        archivo = os.path.join("PDF", f"turnos_{persona.nombre}.pdf")
+        escribir_lineas_en_pdf(columnas, filas, archivo)
+
+        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{persona.nombre}.pdf")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 25.
+@app.get("/reportes/turnos-por-fecha-pdf")
+def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)):
+    try:
+        try:
+            turnos = (
+                db.query(Turno)
+                .join(Persona)
+                .filter(Turno.fecha == fecha)
+                .order_by(Persona.nombre.asc(), Turno.hora.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+        columnas = ["DNI", "Nombre", "ID Turno", "Hora", "Estado"]
+        filas = []
+
+        for t in turnos:
+            filas.append([
+                t.persona.dni,
+                t.persona.nombre,
+                t.id,
+                t.hora.strftime("%H:%M"),
+                t.estado.value,
+            ])
+
+        os.makedirs("PDF", exist_ok=True)
+        archivo = os.path.join("PDF", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf")
+        escribir_lineas_en_pdf(columnas, filas, archivo)
+
+        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 26.
+@app.get("/reportes/turnos-cancelados-mes-actual-pdf")
+def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)):
+    try:
+        hoy = date.today()
+        inicio = hoy.replace(day=1)
+        fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
+            year=inicio.year + 1, month=1
+        )
+
+        try:
+            turnos = (
+                db.query(Turno)
+                .filter(
+                    Turno.estado == EstadoTurno.cancelado,
+                    Turno.fecha >= inicio,
+                    Turno.fecha < fin
+                )
+                .order_by(Turno.fecha.asc(), Turno.hora.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+
+        columnas = ["ID", "DNI", "Fecha", "Hora"]
+        filas = []
+
+        for t in turnos:
+            filas.append([
+                t.id,
+                t.persona.dni,
+                t.fecha,
+                t.hora.strftime("%H:%M"),
+            ])
+
+        os.makedirs("PDF", exist_ok=True)
+        archivo = os.path.join("PDF", "turnos_cancelados_mes_actual.pdf")
+        escribir_lineas_en_pdf(columnas, filas, archivo)
+
+        return FileResponse(archivo, media_type="application/pdf", filename="turnos_cancelados_mes_actual.pdf")
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 27.
+@app.get("/reportes/estado-personas-habilitadas-pdf")
+def estado_personas_habilitadas_pdf(habilitada: bool, db: Session = Depends(get_db)):
+    try:
+        try:
+            personas = (
+                db.query(Persona)
+                .filter(Persona.habilitado == habilitada)
+                .order_by(Persona.id.asc())
+                .all()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}")
+
+        columnas = ["DNI", "Nombre", "Email", "Teléfono"]
+        filas = []
+
+        for p in personas:
+            filas.append([
+                p.dni,
+                p.nombre,
+                p.email,
+                p.telefono,
+            ])
+
+        os.makedirs("PDF", exist_ok=True)
+        archivo = os.path.join("PDF", "estado_personas_habilitadas.pdf")
+        escribir_lineas_en_pdf(columnas, filas, archivo)
+
+        return FileResponse(archivo, media_type="application/pdf", filename="estado_personas_habilitadas.pdf")
+
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno del servidor")

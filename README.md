@@ -15,7 +15,7 @@ HITO 2:
 https://youtu.be/NWY2hYGvF7o
 
 Link colleccion Postman:
-https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-7e84dbbc-d94c-4756-9084-26d7214c8355?action=share&source=copy-link&creator=48622493
+https://ivankersevan13-8355299.postman.co/workspace/TP-Seminario-Python-Grupo-11's-~6da58f10-1211-4bdb-82bb-be7bc22ba18d/collection/48622493-a74a7414-05ad-4dea-bb09-97fbbc4bdbd9?action=share&source=copy-link&creator=48622493
 
 Link Repositorio Github:
 https://github.com/alejoo1601/SL-UNLA-LAB-2025-GRUPO-11
@@ -148,3 +148,56 @@ Endpoints:
 19. GET /reportes/estado-personas — Personas habilitadas / inhabilitadas (Matias Torres de Lima y Alejo Tomas Machado Prieto)
     Query: habilitada (bool, requerido: true o false)
     200: OK
+
+* Reportes CSV:
+20. GET /reportes/turnos-por-persona-csv — Exporta los turnos de una persona en formato CSV (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: dni (int, requerido)
+    200: archivo CSV descargable.
+    404: persona no encontrada.
+    500: error generando archivo.
+
+21. GET /reportes/turnos-por-fecha-csv — Exporta los turnos de una fecha en formato CSV (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: fecha (YYYY-MM-DD, requerido)
+    200: archivo CSV descargable.
+    500: error generando archivo.
+
+22. GET /reportes/turnos-cancelados-mes-actual-csv — Exporta los turnos cancelados del mes actual (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    200: archivo CSV descargable.
+    500: error generando archivo.
+
+23. GET /reportes/estado-personas-habilitadas-csv — Exporta todas las personas según estado de habilitación (Matias Torres de Lima y Alejo Tomas Machado Prieto)
+    Query: habilitada (bool, requerido)
+    200: archivo CSV descargable.
+    500: error generando archivo.
+
+* Reportes PDF:
+24. GET /reportes/turnos-por-persona-pdf — PDF con los turnos de una persona (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Query: dni (int, requerido)
+    Incluye título con nombre y DNI y una tabla con: ID, Fecha, Hora, Estado.
+    200: PDF descargable.
+    404: persona no encontrada.
+    500: error generando PDF.
+
+25. GET /reportes/turnos-por-fecha-pdf — PDF con los turnos de una fecha (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Query: fecha (YYYY-MM-DD, requerido)
+    Tabla: DNI, Nombre, ID Turno, Hora, Estado.
+    200: PDF descargable.
+    500: error generando PDF.
+
+26. GET /reportes/turnos-cancelados-mes-actual-pdf — PDF con turnos cancelados del mes actual (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Tabla: ID, DNI, Fecha, Hora.
+    200: PDF descargable.
+    500: error generando PDF.
+
+27. GET /reportes/estado-personas-habilitadas-pdf — PDF con personas habilitadas (Ivan Kersevan y Tomas Ezequiel Laruina Inchausti)
+    Query: habilitada (bool, requerido)
+    Tabla: DNI, Nombre, Email, Teléfono.
+    200: PDF descargable.
+    500: error generando PDF.
+
+Notas sobre exportación CSV/PDF:
+* Los CSV se generan con separador `;` y sin índice.
+* Los PDF se generan con la librería borb (v2.1.5).
+* Las carpetas se crean automáticamente si no existen.
+* Los archivos se guardan en las carpetas "PDF" Y "CSV" respectivamente antes de ser devueltos.
+* Se aplican try/except en cada endpoint para capturar errores de formato o generación.
