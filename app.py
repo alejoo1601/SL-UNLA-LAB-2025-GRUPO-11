@@ -921,6 +921,9 @@ def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)): #Se pide un
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
+        if not turnos:  
+            raise HTTPException(status_code=404, detail="No hay turnos cancelados en este mes")
+        
         filas = []
         for t in turnos:
             filas.append({
@@ -1097,6 +1100,9 @@ def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)): #Se pide un
             ) #Se busca los turnos dentro del rango de dias del mes que sean cancelados y de manera ascendente en fecha y hora.
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
+        
+        if not turnos:  
+            raise HTTPException(status_code=404, detail="No hay turnos cancelados en este mes")
 
         columnas = ["ID", "DNI", "Fecha", "Hora"] #Se crea el encabezado.
         filas = [] #Se crea el array de filas.
