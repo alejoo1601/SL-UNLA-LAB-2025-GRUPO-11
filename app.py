@@ -12,11 +12,10 @@ TurnoIn, TurnoUpdate, TurnoOut, TurnosDisponiblesOut,)
 
 from Utilidades.utils import (get_db, validar_email, parsear_hora,SLOTS_FIJOS)
 
-import os
-import pandas as pd
-from fastapi.responses import FileResponse
-from datetime import date
-from Utilidades.utils import escribir_lineas_en_pdf
+import os #habilita la libreria del SO.
+import pandas as pd #Importo Pandas como "pd".
+from fastapi.responses import FileResponse #"Permite descargar el archivo en el buscador web con fastapi".
+from Utilidades.utils import escribir_lineas_en_pdf #Importo la funcion de utils.py.
 
 app = FastAPI(title="TP Grupo 11", version="1.8.1")
 
@@ -818,15 +817,15 @@ def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
 # Reportes CSV
 # 20.
 @app.get("/reportes/turnos-por-persona-csv")
-def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)):
+def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)): #Se pide el parametro del DNI y para tener una sesión de base de datos.
     try:
         try:
-            persona = db.query(Persona).filter(Persona.dni == dni).first()
+            persona = db.query(Persona).filter(Persona.dni == dni).first() #Busca si la persona segun el dni.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}") #si ocurre una excepcion tira el codigo 500.
 
         if not persona:
-            raise HTTPException(status_code=404, detail="Persona no encontrada")
+            raise HTTPException(status_code=404, detail="Persona no encontrada") #si no se encuentra se tira el codigo 404.
 
         try:
             turnos = (
@@ -834,9 +833,9 @@ def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)):
                 .filter(Turno.persona_id == persona.id)
                 .order_by(Turno.fecha.desc(), Turno.hora.desc())
                 .all()
-            )
+            ) #Se busca los turnos del dni asignado, y se los ordena de manera decendente segun fecha y hora. Se almacena en turnos.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") # si ocurre una excepcion se tira el codigo 500.
 
         filas = []
         for t in turnos:
@@ -845,25 +844,24 @@ def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)):
                 "fecha": t.fecha.isoformat(),
                 "hora": t.hora.strftime("%H:%M"),
                 "estado": t.estado.value,
-            })
+            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        df = pd.DataFrame(filas)
+        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
 
-        os.makedirs("CSV", exist_ok=True)
-        archivo = os.path.join("CSV", f"turnos_{persona.nombre}.csv")
-        df.to_csv(archivo, sep=";", index=False)
+        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
+        archivo = os.path.join("CSV", f"turnos_{persona.nombre}.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
+        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
 
-        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{persona.nombre}.csv")
-
+        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{persona.nombre}.csv") #Se descarga el archivo en el buscador web
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 21.
 @app.get("/reportes/turnos-por-fecha-csv")
-def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)):
+def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)): #Se pide el parametro de la fecha y para tener una sesión de base de datos.
     try:
         try:
             turnos = (
@@ -872,9 +870,9 @@ def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)):
                 .filter(Turno.fecha == fecha)
                 .order_by(Persona.nombre.asc(), Turno.hora.asc())
                 .all()
-            )
+            ) #Se busca los turnos, y se los ordena de manera ascendente segun la fecha asignada. Se almacena en turnos.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
         filas = []
         for t in turnos:
@@ -884,31 +882,30 @@ def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)):
                 "id_turno": t.id,
                 "hora": t.hora.strftime("%H:%M"),
                 "estado": t.estado.value,
-            })
+            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        df = pd.DataFrame(filas)
+        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
+ 
+        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
+        archivo = os.path.join("CSV", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
+        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
 
-        os.makedirs("CSV", exist_ok=True)
-        archivo = os.path.join("CSV", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv")
-        df.to_csv(archivo, sep=";", index=False)
-
-        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv")
-
+        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv") #Se descarga el archivo en el buscador web
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 22.
-@app.get("/reportes/turnos-cancelados-mes-actual-csv")
-def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)):
+@app.get("/reportes/turnos-cancelados-mes-actual-csv") 
+def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)): #Se pide una sesión de base de datos.
     try:
-        hoy = date.today()
-        inicio = hoy.replace(day=1)
+        hoy = date.today() #Se obtiene la fecha actual.
+        inicio = hoy.replace(day=1) #primer día del mes actual.
         fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
             year=inicio.year + 1, month=1
-        )
+        ) #Primer día del mes siguiente. Si el mes es de 1 a 11 sumamos 1 al mes sino si es diciembre (12) pasamos a enero del año siguiente.
 
         try:
             turnos = (
@@ -920,9 +917,9 @@ def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)):
                 )
                 .order_by(Turno.fecha.asc(), Turno.hora.asc())
                 .all()
-            )
+            ) #Se busca los turnos dentro del rango de dias del mes que sean cancelados y de manera ascendente en fecha y hora.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
         filas = []
         for t in turnos:
@@ -931,25 +928,28 @@ def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)):
                 "dni_persona": t.persona.dni,
                 "fecha": t.fecha.isoformat(),
                 "hora": t.hora.strftime("%H:%M"),
-            })
+            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        df = pd.DataFrame(filas)
+        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
 
-        os.makedirs("CSV", exist_ok=True)
-        archivo = os.path.join("CSV", "turnos_cancelados_mes_actual.csv")
-        df.to_csv(archivo, sep=";", index=False)
+        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
+        archivo = os.path.join("CSV", "turnos_cancelados_mes_actual.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
+        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
 
-        return FileResponse(archivo, media_type="text/csv", filename="turnos_cancelados_mes_actual.csv")
-
-    except HTTPException:
-        raise
+        return FileResponse(archivo, media_type="text/csv", filename="turnos_cancelados_mes_actual.csv") #Se descarga el archivo en el buscador web
+    except HTTPException: 
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 23.
-@app.get("/reportes/estado-personas-habilitadas-csv")
-def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_db)):
+@app.get("/reportes/estado-personas-habilitadas-csv") 
+def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_db)): #Se pide de parametro "habilitada" un booleano y una sesión de base de datos.
+    
+    if habilitada is False:
+        raise HTTPException(status_code=400, detail="Debe ser 'True' el valor de 'habilitada'") #Se tira una excepcion 400 ya que habilitada es "false".
+
     try:
         try:
             personas = (
@@ -957,9 +957,9 @@ def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_
                 .filter(Persona.habilitado == habilitada)
                 .order_by(Persona.id.asc())
                 .all()
-            )
+            ) #Se busca las personas habilitadas y se ordenan de manera ascendente.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
         filas = []
         for p in personas:
@@ -969,55 +969,53 @@ def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_
                 "email": p.email,
                 "telefono": p.telefono,
                 "habilitado": p.habilitado,
-            })
+            }) #Se muestra en un array (filas) con las personas siguiendo el formato asignado en este bucle for.
 
-        df = pd.DataFrame(filas)
+        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
 
-        os.makedirs("CSV", exist_ok=True)
-        archivo = os.path.join("CSV", "estado_personas_habilitadas.csv")
-        df.to_csv(archivo, sep=";", index=False)
+        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
+        archivo = os.path.join("CSV", "estado_personas_habilitadas.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
+        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
 
-        return FileResponse(archivo, media_type="text/csv", filename="estado_personas_habilitadas.csv")
-
+        return FileResponse(archivo, media_type="text/csv", filename="estado_personas_habilitadas.csv") #Se descarga el archivo en el buscador web
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
     
 
 
 #Reportes PDF
 # 24.
-@app.get("/reportes/turnos-por-persona-pdf")
-def turnos_por_persona_pdf(dni: int, db: Session = Depends(get_db)):
+@app.get("/reportes/turnos-por-persona-pdf") 
+def turnos_por_persona_pdf(dni: int, db: Session = Depends(get_db)): #Se pide el parametro del DNI y para tener una sesión de base de datos.
     try:
       
         try:
-            persona = db.query(Persona).filter(Persona.dni == dni).first()
+            persona = db.query(Persona).filter(Persona.dni == dni).first() #Se busca la persona segun el DNI asignado.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
         if not persona:
-            raise HTTPException(status_code=404, detail="Persona no encontrada")
+            raise HTTPException(status_code=404, detail="Persona no encontrada") #Se tira una excepcion 404 porque no se encontro a la persona del DNI.
 
-      
         try:
             turnos = (
                 db.query(Turno)
                 .filter(Turno.persona_id == persona.id)
                 .order_by(Turno.fecha.desc(), Turno.hora.desc())
                 .all()
-            )
+            ) #Busca los turnos de esta persona por su id y los ordena de forma descendente en turnos.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
        
-        titulo = f"{persona.nombre} DNI: {persona.dni}"
-        columnas = ["ID", "Fecha", "Hora", "Estado"]
+        titulo = f"{persona.nombre} DNI: {persona.dni}" #Se crea un titulo que indica a la persona que se le pide sus turnos.
+        columnas = ["ID", "Fecha", "Hora", "Estado"] #El encabezado con la informacion a mostrar.
 
-        filas = []
+        filas = [] #Se crea las filas.
 
-        filas.append([titulo, "", "", ""])
+        filas.append([titulo, "", "", ""]) #Se agrega a las filas el titulo creado.
 
         for t in turnos:
             filas.append([
@@ -1025,23 +1023,22 @@ def turnos_por_persona_pdf(dni: int, db: Session = Depends(get_db)):
                 t.fecha,
                 t.hora.strftime("%H:%M"),
                 t.estado.value,
-            ])
+            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        os.makedirs("PDF", exist_ok=True)
-        archivo = os.path.join("PDF", f"turnos_{persona.nombre}.pdf")
-        escribir_lineas_en_pdf(columnas, filas, archivo)
+        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
+        archivo = os.path.join("PDF", f"turnos_{persona.nombre}.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
+        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
 
-        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{persona.nombre}.pdf")
-
-    except HTTPException:
-        raise
+        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{persona.nombre}.pdf") #Se descarga el archivo en el buscador web
+    except HTTPException: 
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 25.
-@app.get("/reportes/turnos-por-fecha-pdf")
-def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)):
+@app.get("/reportes/turnos-por-fecha-pdf") 
+def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)): #Se pide el parametro de la fecha y para tener una sesión de base de datos.
     try:
         try:
             turnos = (
@@ -1049,13 +1046,13 @@ def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)):
                 .join(Persona)
                 .filter(Turno.fecha == fecha)
                 .order_by(Persona.nombre.asc(), Turno.hora.asc())
-                .all()
-            )
+                .all() 
+            ) #Se busca los turnos, y se los ordena de manera ascendente segun la fecha asignada. Se almacena en turnos.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
-        columnas = ["DNI", "Nombre", "ID Turno", "Hora", "Estado"]
-        filas = []
+        columnas = ["DNI", "Nombre", "ID Turno", "Hora", "Estado"] #Se crea el encabezado.
+        filas = [] #Se crea el array de filas.
 
         for t in turnos:
             filas.append([
@@ -1064,29 +1061,28 @@ def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)):
                 t.id,
                 t.hora.strftime("%H:%M"),
                 t.estado.value,
-            ])
+            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        os.makedirs("PDF", exist_ok=True)
-        archivo = os.path.join("PDF", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf")
-        escribir_lineas_en_pdf(columnas, filas, archivo)
+        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
+        archivo = os.path.join("PDF", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
+        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
 
-        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf")
-
+        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf") #Se descarga el archivo en el buscador web
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 26.
-@app.get("/reportes/turnos-cancelados-mes-actual-pdf")
-def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)):
+@app.get("/reportes/turnos-cancelados-mes-actual-pdf") 
+def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)): #Se pide una sesión de base de datos.
     try:
-        hoy = date.today()
-        inicio = hoy.replace(day=1)
+        hoy = date.today() #Se obtiene la fecha actual.
+        inicio = hoy.replace(day=1) #primer día del mes actual.
         fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
             year=inicio.year + 1, month=1
-        )
+        ) #Primer día del mes siguiente. Si el mes es de 1 a 11 sumamos 1 al mes sino si es diciembre (12) pasamos a enero del año siguiente.
 
         try:
             turnos = (
@@ -1098,12 +1094,12 @@ def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)):
                 )
                 .order_by(Turno.fecha.asc(), Turno.hora.asc())
                 .all()
-            )
+            ) #Se busca los turnos dentro del rango de dias del mes que sean cancelados y de manera ascendente en fecha y hora.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
-        columnas = ["ID", "DNI", "Fecha", "Hora"]
-        filas = []
+        columnas = ["ID", "DNI", "Fecha", "Hora"] #Se crea el encabezado.
+        filas = [] #Se crea el array de filas.
 
         for t in turnos:
             filas.append([
@@ -1111,36 +1107,39 @@ def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)):
                 t.persona.dni,
                 t.fecha,
                 t.hora.strftime("%H:%M"),
-            ])
+            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
 
-        os.makedirs("PDF", exist_ok=True)
-        archivo = os.path.join("PDF", "turnos_cancelados_mes_actual.pdf")
-        escribir_lineas_en_pdf(columnas, filas, archivo)
+        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
+        archivo = os.path.join("PDF", "turnos_cancelados_mes_actual.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
+        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
 
-        return FileResponse(archivo, media_type="application/pdf", filename="turnos_cancelados_mes_actual.pdf")
-
+        return FileResponse(archivo, media_type="application/pdf", filename="turnos_cancelados_mes_actual.pdf") #Se descarga el archivo en el buscador web
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
 
 
 # 27.
 @app.get("/reportes/estado-personas-habilitadas-pdf")
-def estado_personas_habilitadas_pdf(habilitada: bool, db: Session = Depends(get_db)):
+def estado_personas_habilitadas_pdf(habilitada: bool, db: Session = Depends(get_db)): #Se pide de parametro "habilitada" un booleano y una sesión de base de datos.
+
+    if habilitada is False:
+        raise HTTPException(status_code=400, detail="Debe ser 'True' el valor de 'habilitada'") #Se tira una excepcion 400 ya que habilitada es "false".
+
     try:
         try:
             personas = (
                 db.query(Persona)
                 .filter(Persona.habilitado == habilitada)
                 .order_by(Persona.id.asc())
-                .all()
-            )
+                .all() 
+            ) #Se busca a las personas "habilitadas" y se las ordena de manera ascendente.
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}")
+            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}") #Se tira una excepcion si hay un error con codigo 500.
 
-        columnas = ["DNI", "Nombre", "Email", "Teléfono"]
-        filas = []
+        columnas = ["DNI", "Nombre", "Email", "Teléfono"] #Se crea el encabezado.
+        filas = [] #Se crea el array de filas.
 
         for p in personas:
             filas.append([
@@ -1148,15 +1147,15 @@ def estado_personas_habilitadas_pdf(habilitada: bool, db: Session = Depends(get_
                 p.nombre,
                 p.email,
                 p.telefono,
-            ])
+            ]) #Se muestra en un array (filas) con las personas siguiendo el formato asignado en este bucle for.
 
-        os.makedirs("PDF", exist_ok=True)
-        archivo = os.path.join("PDF", "estado_personas_habilitadas.pdf")
-        escribir_lineas_en_pdf(columnas, filas, archivo)
+        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
+        archivo = os.path.join("PDF", "estado_personas_habilitadas.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
+        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
 
-        return FileResponse(archivo, media_type="application/pdf", filename="estado_personas_habilitadas.pdf")
+        return FileResponse(archivo, media_type="application/pdf", filename="estado_personas_habilitadas.pdf") #Se descarga el archivo en el buscador web
 
     except HTTPException:
-        raise
+        raise #Se tira alguna excepcion de HTTP si la hay.
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.

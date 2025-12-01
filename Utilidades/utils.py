@@ -77,30 +77,30 @@ def turno_o_404(db: Session, turno_id: int) -> Turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     return t
 
-def escribir_lineas_en_pdf(columnas, filas, ruta):
+def escribir_lineas_en_pdf(columnas, filas, ruta): #Parametros de lista de Columnas y Filas ,ademas de la Ruta donde estara el archivo.
 
     try:
-        doc = Document()
-        page = Page()
-        doc.add_page(page)
+        doc = Document() #Se crea un documento PDF vacio.
+        page = Page() #Se crea una pagina dentro del archivo PDF.
+        doc.add_page(page) #Se agrega esta pagina recien creada al archivo PDF.
 
-        layout = SingleColumnLayout(page)
+        layout = SingleColumnLayout(page) #Creamos un layout de una sola columna para esa pagina.
 
-        tabla = FixedColumnWidthTable(number_of_columns=len(columnas), number_of_rows=len(filas) + 1)
+        tabla = FixedColumnWidthTable(number_of_columns=len(columnas), number_of_rows=len(filas) + 1) #Se crea la tabla y se indica la cantidad de columnas y filas + 1 ya que se necesita para el encabezado.
 
         # Columnas
-        for c in columnas:
-            tabla.add(TableCell(Paragraph(str(c))))
+        for c in columnas: #Recorre cada columna del encabezado.
+            tabla.add(TableCell(Paragraph(str(c)))) #Crea un "Paragraph" con el texto del nombre de la columna y se inserta dentro de un "TableCell" (tabla); y se agrega a la tabla en la primera fila.
 
         # Filas
-        for fila in filas:
-            for valor in fila:
-                tabla.add(TableCell(Paragraph(str(valor))))
+        for fila in filas: #Recorre cada fila de datos (id, fecha, hora, estado).
+            for valor in fila: #Cada valor lo convertimos a string, se crea un "Paragraph" y lo inserta en una celda "TableCell" (tabla).
+                tabla.add(TableCell(Paragraph(str(valor)))) #Se agrega a la posicion de la tabla.
 
-        layout.add(tabla)
+        layout.add(tabla) #Le encarga al layout de una columna que coloque la tabla en la pagina.
 
-        with open(ruta, "wb") as pdf_file:
-            PDF.dumps(pdf_file, doc)
+        with open(ruta, "wb") as pdf_file: #Abre el archivo en modo binario de escritura en la ruta que se asigno.
+            PDF.dumps(pdf_file, doc) #borb pone toda la información en el archivo".
 
     except Exception as e:
-        raise RuntimeError(f"Error generando PDF con tabla: {e}")
+        raise RuntimeError(f"Error generando PDF con tabla: {e}") #Se tira una excepcion si hay un error con el mensaje asignado.

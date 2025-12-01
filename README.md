@@ -168,6 +168,7 @@ Endpoints:
 23. GET /reportes/estado-personas-habilitadas-csv — Exporta todas las personas según estado de habilitación (Matias Torres de Lima y Alejo Tomas Machado Prieto)
     Query: habilitada (bool, requerido)
     200: archivo CSV descargable.
+    400: error de booleano ingresado.
     500: error generando archivo.
 
 * Reportes PDF:
@@ -193,6 +194,7 @@ Endpoints:
     Query: habilitada (bool, requerido)
     Tabla: DNI, Nombre, Email, Teléfono.
     200: PDF descargable.
+    400: error de booleano ingresado.
     500: error generando PDF.
 
 Notas sobre exportación CSV/PDF:
