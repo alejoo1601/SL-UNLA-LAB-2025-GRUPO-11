@@ -796,155 +796,285 @@ def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-# Reportes CSV
-# 20.
-@app.get("/reportes/turnos-por-persona-csv")
-def turnos_por_persona_csv(dni: int, db: Session = Depends(get_db)): #Se pide el parametro del DNI y para tener una sesión de base de datos.
+
+# =====================================================
+# REPORTES CSV (punto G)
+# =====================================================
+
+# 20 GET /reportes/csv/turnos-por-fecha?fecha=YYYY-MM-DD
+@app.get("/reportes/csv/turnos-por-fecha")
+def csv_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
+    """
+    CSV con los turnos de una fecha.
+    """
     try:
-        try:
-            persona = db.query(Persona).filter(Persona.dni == dni).first() #Busca si la persona segun el dni.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}") #si ocurre una excepcion tira el codigo 500.
-
-        if not persona:
-            raise HTTPException(status_code=404, detail="Persona no encontrada") #si no se encuentra se tira el codigo 404.
-
-        try:
-            turnos = (
-                db.query(Turno)
-                .filter(Turno.persona_id == persona.id)
-                .order_by(Turno.fecha.desc(), Turno.hora.desc())
-                .all()
-            ) #Se busca los turnos del dni asignado, y se los ordena de manera decendente segun fecha y hora. Se almacena en turnos.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") # si ocurre una excepcion se tira el codigo 500.
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(Turno.fecha == fecha)
+            .order_by(Persona.nombre.asc(), Turno.hora.asc())
+            .all()
+        )
 
         filas = []
         for t in turnos:
             filas.append({
-                "id": t.id,
-                "fecha": t.fecha.isoformat(),
-                "hora": t.hora.strftime("%H:%M"),
-                "estado": t.estado.value,
-            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
-
-        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
-
-        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
-        archivo = os.path.join("CSV", f"turnos_{persona.nombre}.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
-        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
-
-        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{persona.nombre}.csv") #Se descarga el archivo en el buscador web
-    except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
-
-
-# 21.
-@app.get("/reportes/turnos-por-fecha-csv")
-def turnos_por_fecha_csv(fecha: date, db: Session = Depends(get_db)): #Se pide el parametro de la fecha y para tener una sesión de base de datos.
-    try:
-        try:
-            turnos = (
-                db.query(Turno)
-                .join(Persona)
-                .filter(Turno.fecha == fecha)
-                .order_by(Persona.nombre.asc(), Turno.hora.asc())
-                .all()
-            ) #Se busca los turnos, y se los ordena de manera ascendente segun la fecha asignada. Se almacena en turnos.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
-
-        filas = []
-        for t in turnos:
-            filas.append({
-                "dni_persona": t.persona.dni,
+                "dni": t.persona.dni,
                 "nombre": t.persona.nombre,
                 "id_turno": t.id,
+                "fecha": t.fecha.isoformat(),
                 "hora": t.hora.strftime("%H:%M"),
                 "estado": t.estado.value,
-            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
+            })
 
-        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
- 
-        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
-        archivo = os.path.join("CSV", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
-        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        return FileResponse(archivo, media_type="text/csv", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.csv") #Se descarga el archivo en el buscador web
+        df = pd.DataFrame(filas)
+
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        filename = f"turnos_{fecha.isoformat()}.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
     except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
-# 22.
-@app.get("/reportes/turnos-cancelados-mes-actual-csv") 
-def turnos_cancelados_mes_actual_csv(db: Session = Depends(get_db)): #Se pide una sesión de base de datos.
+# 21 GET /reportes/csv/turnos-cancelados-por-mes
+@app.get("/reportes/csv/turnos-cancelados-por-mes")
+def csv_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
+    """
+    CSV con todos los turnos cancelados en el mes en curso.
+    """
     try:
-        hoy = date.today() #Se obtiene la fecha actual.
-        inicio = hoy.replace(day=1) #primer día del mes actual.
-        fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
-            year=inicio.year + 1, month=1
-        ) #Primer día del mes siguiente. Si el mes es de 1 a 11 sumamos 1 al mes sino si es diciembre (12) pasamos a enero del año siguiente.
+        hoy = date.today()
+        inicio = hoy.replace(day=1)
+        fin = inicio + relativedelta(months=1)
 
-        try:
-            turnos = (
-                db.query(Turno)
-                .filter(
-                    Turno.estado == EstadoTurno.cancelado,
-                    Turno.fecha >= inicio,
-                    Turno.fecha < fin
-                )
-                .order_by(Turno.fecha.asc(), Turno.hora.asc())
-                .all()
-            ) #Se busca los turnos dentro del rango de dias del mes que sean cancelados y de manera ascendente en fecha y hora.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(
+                Turno.estado == EstadoTurno.cancelado,
+                Turno.fecha >= inicio,
+                Turno.fecha < fin,
+            )
+            .order_by(Turno.fecha.asc(), Turno.hora.asc())
+            .all()
+        )
 
-        if not turnos:  
-            raise HTTPException(status_code=404, detail="No hay turnos cancelados en este mes")
-        
         filas = []
         for t in turnos:
             filas.append({
                 "id": t.id,
-                "dni_persona": t.persona.dni,
+                "dni": t.persona.dni,
+                "nombre": t.persona.nombre,
                 "fecha": t.fecha.isoformat(),
                 "hora": t.hora.strftime("%H:%M"),
-            }) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
+            })
 
-        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
-        archivo = os.path.join("CSV", "turnos_cancelados_mes_actual.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
-        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
+        df = pd.DataFrame(filas)
 
-        return FileResponse(archivo, media_type="text/csv", filename="turnos_cancelados_mes_actual.csv") #Se descarga el archivo en el buscador web
-    except HTTPException: 
-        raise #Se tira alguna excepcion de HTTP si la hay.
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        filename = "turnos_cancelados_mes_actual.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
-# 23.
-@app.get("/reportes/estado-personas-habilitadas-csv") 
-def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_db)): #Se pide de parametro "habilitada" un booleano y una sesión de base de datos.
-    
-    if habilitada is False:
-        raise HTTPException(status_code=400, detail="Debe ser 'True' el valor de 'habilitada'") #Se tira una excepcion 400 ya que habilitada es "false".
-
+# 22 GET /reportes/csv/turnos-por-persona?dni=12345678
+@app.get("/reportes/csv/turnos-por-persona")
+def csv_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
+    """
+    CSV con todos los turnos de una persona.
+    """
     try:
-        try:
-            personas = (
-                db.query(Persona)
-                .filter(Persona.habilitado == habilitada)
-                .order_by(Persona.id.asc())
-                .all()
-            ) #Se busca las personas habilitadas y se ordenan de manera ascendente.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}") #Se tira una excepcion si hay un error con codigo 500.
+        persona = persona_por_dni_o_404(db, dni)
+
+        turnos = (
+            db.query(Turno)
+            .filter(Turno.persona_id == persona.id)
+            .order_by(Turno.fecha.desc(), Turno.hora.desc())
+            .all()
+        )
+
+        filas = []
+        for t in turnos:
+            filas.append({
+                "id": t.id,
+                "fecha": t.fecha.isoformat(),
+                "hora": t.hora.strftime("%H:%M"),
+                "estado": t.estado.value,
+            })
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        df = pd.DataFrame(filas)
+
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        filename = f"turnos_{persona.nombre}.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 23 GET /reportes/csv/turnos-cancelados?min=5
+@app.get("/reportes/csv/turnos-cancelados")
+def csv_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db)):
+    """
+    CSV con personas que tienen al menos 'min' turnos cancelados en los últimos 6 meses.
+    """
+    try:
+        hoy = date.today()
+        hace_6_meses = hoy - timedelta(days=180)  # aproximación 6 meses
+
+        resultados = (
+            db.query(
+                Persona.dni,
+                Persona.nombre,
+                func.count(Turno.id).label("cantidad_cancelados"),
+            )
+            .join(Turno)
+            .filter(
+                Turno.estado == EstadoTurno.cancelado,
+                Turno.fecha >= hace_6_meses,
+                Turno.fecha <= hoy,
+            )
+            .group_by(Persona.id)
+            .having(func.count(Turno.id) >= min)
+            .order_by(func.count(Turno.id).desc())
+            .all()
+        )
+
+        filas = []
+        for dni_persona, nombre, cant in resultados:
+            filas.append({
+                "dni": dni_persona,
+                "nombre": nombre,
+                "cancelados_ultimos_6_meses": cant,
+            })
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        df = pd.DataFrame(filas)
+
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        filename = f"personas_con_{min}_o_mas_cancelados.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
+    
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 24 GET /reportes/csv/turnos-confirmados?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+@app.get("/reportes/csv/turnos-confirmados")
+def csv_turnos_confirmados(
+    desde: date,
+    hasta: date,
+    db: Session = Depends(get_db),
+):
+    """
+    CSV con turnos confirmados entre dos fechas (inclusive).
+    """
+    try:
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(
+                Turno.estado == EstadoTurno.confirmado,
+                Turno.fecha >= desde,
+                Turno.fecha <= hasta,
+            )
+            .order_by(Turno.fecha.asc(), Turno.hora.asc())
+            .all()
+        )
+
+        filas = []
+        for t in turnos:
+            filas.append({
+                "dni": t.persona.dni,
+                "nombre": t.persona.nombre,
+                "id_turno": t.id,
+                "fecha": t.fecha.isoformat(),
+                "hora": t.hora.strftime("%H:%M"),
+            })
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        df = pd.DataFrame(filas)
+
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        filename = f"turnos_confirmados_{desde}_a_{hasta}.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
+    
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 25 GET /reportes/csv/estado-personas?habilitada=true/false
+@app.get("/reportes/csv/estado-personas")
+def csv_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
+    """
+    CSV con listado de personas según su estado de habilitación.
+    """
+    try:
+        personas = (
+            db.query(Persona)
+            .filter(Persona.habilitado == habilitada)
+            .order_by(Persona.id.asc())
+            .all()
+        )
 
         filas = []
         for p in personas:
@@ -954,22 +1084,30 @@ def estado_personas_habilitadas_csv(habilitada: bool, db: Session = Depends(get_
                 "email": p.email,
                 "telefono": p.telefono,
                 "habilitado": p.habilitado,
-            }) #Se muestra en un array (filas) con las personas siguiendo el formato asignado en este bucle for.
+            })
 
-        df = pd.DataFrame(filas) #Se define df como el dataframe de filas.
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        os.makedirs("CSV", exist_ok=True) #Crea una carpeta "CSV" Si no existe en el directorio.
-        archivo = os.path.join("CSV", "estado_personas_habilitadas.csv") #Crea el archivo .csv y se guarda en la carptea "CSV".
-        df.to_csv(archivo, sep=";", index=False) #Se establece que el separador de datos sea el ";" usando la funcion del dataframe (.to_csv).
+        df = pd.DataFrame(filas)
 
-        return FileResponse(archivo, media_type="text/csv", filename="estado_personas_habilitadas.csv") #Se descarga el archivo en el buscador web
+        buffer = StringIO()
+        df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
+        csv_bytes = buffer.getvalue().encode("utf-8")
+        stream = BytesIO(csv_bytes)
+
+        estado = "habilitadas" if habilitada else "no_habilitadas"
+        filename = f"personas_{estado}.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="text/csv", headers=headers)
+
     except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
     
-
-
 #Reportes PDF
 # 24.
 @app.get("/reportes/turnos-por-persona-pdf") 

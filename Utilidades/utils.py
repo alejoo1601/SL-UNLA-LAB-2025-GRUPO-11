@@ -1,11 +1,15 @@
 import re
+import os
+from io import BytesIO
 from datetime import date, datetime, timedelta, time as time_cls
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from typing import Iterable, List, Optional
 
 from BaseDatos.database import SessionLocal
 from Modelos.models import Persona, Turno
 
+from dotenv import load_dotenv
 from borb.pdf import SingleColumnLayout
 from borb.pdf import Document
 from borb.pdf.page.page import Page
@@ -13,46 +17,104 @@ from borb.pdf.pdf import PDF
 from borb.pdf.canvas.layout.text.paragraph import Paragraph
 from borb.pdf.canvas.layout.table.fixed_column_width_table import FixedColumnWidthTable
 from borb.pdf.canvas.layout.table.table import TableCell
+from borb.pdf.canvas.layout.layout_element import Alignment
+
+
+# Carga variables de entorno
+load_dotenv()
+
+# Configuración de reportes desde .env
+CSV_SEPARATOR: str = os.getenv("CSV_SEPARATOR", ";")
+REPORT_CSV_DIR: str = os.getenv("REPORT_CSV_DIR", "CSV")
+REPORT_PDF_DIR: str = os.getenv("REPORT_PDF_DIR", "PDF")
+
+
+# --------- Sesión de base de datos --------- #
 
 def get_db():
+    """
+    Dependencia de FastAPI que abre una sesión de BD
+    y se asegura de cerrarla al final del request.
+    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-# -Validador de Mail
+
+# --------- Validador de email --------- #
+
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-def validar_email(email: str):
-    if not EMAIL_RE.match(email or ""):
-        raise HTTPException(status_code=422, detail="Email inválido (use algo@dominio.com)")
 
-# Constantes Horarios (09:00 a 16:30)
-SLOT_START = time_cls(9, 0)   # 09:00
-SLOT_END = time_cls(17, 0)    # 17:00 (último inicio válido: 16:30)
+def validar_email(email: str) -> None:
+    """
+    Valida el formato básico de un email.
+    Lanza HTTPException 422 si es inválido.
+    """
+    if not EMAIL_RE.match(email or ""):
+        raise HTTPException(
+            status_code=422,
+            detail="Email inválido (use formato algo@dominio.com)"
+        )
+
+
+# --------- Manejo de horarios de turnos --------- #
+
+# Franja horaria permitida para turnos (09:00 a 16:30)
+SLOT_START = time_cls(9, 0)
+SLOT_END = time_cls(17, 0)  # último inicio válido: 16:30
 SLOT_STEP_MIN = 30
 
-def _validar_slot(hora: time_cls):
+
+def _validar_slot(hora: time_cls) -> None:
+    """
+    Verifica que la hora sea múltiplo de 30 minutos dentro de la franja permitida.
+    """
     if hora.minute not in (0, 30) or hora.second != 0 or hora.microsecond != 0:
-        raise HTTPException(status_code=422, detail="La hora debe ser cada 30' (HH:00 o HH:30).")
-    ultimo_inicio = (datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)).time()
+        raise HTTPException(
+            status_code=422,
+            detail="La hora debe ser cada 30 minutos (HH:00 o HH:30)."
+        )
+
+    ultimo_inicio = (
+        datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)
+    ).time()
+
     if not (SLOT_START <= hora <= ultimo_inicio):
-        raise HTTPException(status_code=422, detail="Horario fuera de franja (09:00 a 16:30).")
+        raise HTTPException(
+            status_code=422,
+            detail="Horario fuera de franja (09:00 a 16:30)."
+        )
+
 
 def parsear_hora(hhmm: str) -> time_cls:
+    """
+    Parsea una hora en formato HH:MM, valida el slot y devuelve un objeto time.
+    """
     try:
         hora = datetime.strptime(hhmm, "%H:%M").time()
     except ValueError:
-        raise HTTPException(status_code=422, detail="Hora inválida, use HH:MM (ej: 10:30)")
+        raise HTTPException(
+            status_code=422,
+            detail="Hora inválida, use formato HH:MM (por ejemplo 10:30)."
+        )
     _validar_slot(hora)
     return hora
 
-def generar_slots_30min():
-    """Genera ['09:00','09:30', ..., '16:30'] (una vez)."""
-    slots = []
+
+def generar_slots_30min() -> List[str]:
+    """
+    Genera una lista de strings con todos los horarios válidos:
+    ['09:00', '09:30', ..., '16:30'].
+    """
+    slots: List[str] = []
     h, m = SLOT_START.hour, SLOT_START.minute
-    ultimo_inicio = (datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)).time()
+    ultimo_inicio = (
+        datetime.combine(date.today(), SLOT_END) - timedelta(minutes=SLOT_STEP_MIN)
+    ).time()
+
     while True:
         slots.append(f"{h:02d}:{m:02d}")
         m += SLOT_STEP_MIN
@@ -61,46 +123,83 @@ def generar_slots_30min():
             h += 1
         if time_cls(h, m) > ultimo_inicio:
             break
-    return tuple(slots)
+    return slots
 
-SLOTS_FIJOS = set(generar_slots_30min()) 
+
+SLOTS_FIJOS = set(generar_slots_30min())
+
+
+# --------- Helpers de consulta --------- #
 
 def persona_por_dni_o_404(db: Session, dni: int) -> Persona:
-    p = db.query(Persona).filter(Persona.dni == dni).first()
-    if not p:
+    """
+    Busca una persona por DNI.
+    Si no existe, lanza HTTPException 404.
+    """
+    persona = db.query(Persona).filter(Persona.dni == dni).first()
+    if not persona:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
-    return p
+    return persona
+
 
 def turno_o_404(db: Session, turno_id: int) -> Turno:
-    t = db.get(Turno, turno_id)
-    if not t:
+    """
+    Busca un turno por ID.
+    Si no existe, lanza HTTPException 404.
+    """
+    turno = db.get(Turno, turno_id)
+    if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
-    return t
+    return turno
 
-def escribir_lineas_en_pdf(columnas, filas, ruta): #Parametros de lista de Columnas y Filas ,ademas de la Ruta donde estara el archivo.
-
+def generar_pdf_tabla(
+    columnas: Iterable[str],
+    filas: Iterable[Iterable[object]],
+    titulo: Optional[str] = None,
+) -> bytes:
+    """
+    Genera un PDF en memoria con un título opcional y una tabla de datos.
+    Devuelve los bytes del PDF para ser usados en un StreamingResponse.
+    """
     try:
-        doc = Document() #Se crea un documento PDF vacio.
-        page = Page() #Se crea una pagina dentro del archivo PDF.
-        doc.add_page(page) #Se agrega esta pagina recien creada al archivo PDF.
+        doc = Document()
+        page = Page()
+        doc.add_page(page)
 
-        layout = SingleColumnLayout(page) #Creamos un layout de una sola columna para esa pagina.
+        layout = SingleColumnLayout(page)
 
-        tabla = FixedColumnWidthTable(number_of_columns=len(columnas), number_of_rows=len(filas) + 1) #Se crea la tabla y se indica la cantidad de columnas y filas + 1 ya que se necesita para el encabezado.
+        cantidad = len(filas)
 
-        # Columnas
-        for c in columnas: #Recorre cada columna del encabezado.
-            tabla.add(TableCell(Paragraph(str(c)))) #Crea un "Paragraph" con el texto del nombre de la columna y se inserta dentro de un "TableCell" (tabla); y se agrega a la tabla en la primera fila.
+        # Título
+        if titulo:
+            layout.add(Paragraph(titulo, horizontal_alignment=Alignment.CENTERED))
+            layout.add(Paragraph(" "))  # línea en blanco
+        
+        layout.add(Paragraph(f"Cantidad de registros: {cantidad}", horizontal_alignment=Alignment.CENTERED))
 
-        # Filas
-        for fila in filas: #Recorre cada fila de datos (id, fecha, hora, estado).
-            for valor in fila: #Cada valor lo convertimos a string, se crea un "Paragraph" y lo inserta en una celda "TableCell" (tabla).
-                tabla.add(TableCell(Paragraph(str(valor)))) #Se agrega a la posicion de la tabla.
+        columnas = list(columnas)
+        filas = list(filas)
 
-        layout.add(tabla) #Le encarga al layout de una columna que coloque la tabla en la pagina.
+        tabla = FixedColumnWidthTable(
+            number_of_columns=len(columnas),
+            number_of_rows=len(filas) + 1,  # +1 por la fila de encabezados
+        )
 
-        with open(ruta, "wb") as pdf_file: #Abre el archivo en modo binario de escritura en la ruta que se asigno.
-            PDF.dumps(pdf_file, doc) #borb pone toda la información en el archivo".
+        # Encabezados
+        for c in columnas:
+            tabla.add(TableCell(Paragraph(str(c), horizontal_alignment=Alignment.CENTERED)))
+
+        # Filas de datos
+        for fila in filas:
+            for valor in fila:
+                tabla.add(TableCell(Paragraph(str(valor), horizontal_alignment=Alignment.CENTERED)))
+
+        layout.add(tabla)
+
+        buffer = BytesIO()
+        PDF.dumps(buffer, doc)
+        return buffer.getvalue()
 
     except Exception as e:
-        raise RuntimeError(f"Error generando PDF con tabla: {e}") #Se tira una excepcion si hay un error con el mensaje asignado.
+        # Esto se transforma en HTTP 500 en el endpoint
+        raise RuntimeError(f"Error generando PDF con tabla: {e}")
