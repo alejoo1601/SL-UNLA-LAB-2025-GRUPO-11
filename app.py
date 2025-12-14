@@ -1108,180 +1108,299 @@ def csv_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
     
-#Reportes PDF
-# 24.
-@app.get("/reportes/turnos-por-persona-pdf") 
-def turnos_por_persona_pdf(dni: int, db: Session = Depends(get_db)): #Se pide el parametro del DNI y para tener una sesión de base de datos.
+# =====================================================
+# REPORTES PDF (punto F)
+# =====================================================
+
+# 26
+@app.get("/reportes/pdf/turnos-por-fecha")
+def pdf_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
+    """
+    PDF con los turnos de una fecha (tabla).
+    """
     try:
-      
-        try:
-            persona = db.query(Persona).filter(Persona.dni == dni).first() #Se busca la persona segun el DNI asignado.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando persona: {e}") #Se tira una excepcion si hay un error con codigo 500.
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(Turno.fecha == fecha)
+            .order_by(Persona.nombre.asc(), Turno.hora.asc())
+            .all()
+        )
 
-        if not persona:
-            raise HTTPException(status_code=404, detail="Persona no encontrada") #Se tira una excepcion 404 porque no se encontro a la persona del DNI.
-
-        try:
-            turnos = (
-                db.query(Turno)
-                .filter(Turno.persona_id == persona.id)
-                .order_by(Turno.fecha.desc(), Turno.hora.desc())
-                .all()
-            ) #Busca los turnos de esta persona por su id y los ordena de forma descendente en turnos.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
-
-       
-        titulo = f"{persona.nombre} DNI: {persona.dni}" #Se crea un titulo que indica a la persona que se le pide sus turnos.
-        columnas = ["ID", "Fecha", "Hora", "Estado"] #El encabezado con la informacion a mostrar.
-
-        filas = [] #Se crea las filas.
-
-        filas.append([titulo, "", "", ""]) #Se agrega a las filas el titulo creado.
-
-        for t in turnos:
-            filas.append([
-                t.id,
-                t.fecha,
-                t.hora.strftime("%H:%M"),
-                t.estado.value,
-            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
-
-        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
-        archivo = os.path.join("PDF", f"turnos_{persona.nombre}.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
-        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
-
-        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{persona.nombre}.pdf") #Se descarga el archivo en el buscador web
-    except HTTPException: 
-        raise #Se tira alguna excepcion de HTTP si la hay.
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
-
-
-# 25.
-@app.get("/reportes/turnos-por-fecha-pdf") 
-def turnos_por_fecha_pdf(fecha: date, db: Session = Depends(get_db)): #Se pide el parametro de la fecha y para tener una sesión de base de datos.
-    try:
-        try:
-            turnos = (
-                db.query(Turno)
-                .join(Persona)
-                .filter(Turno.fecha == fecha)
-                .order_by(Persona.nombre.asc(), Turno.hora.asc())
-                .all() 
-            ) #Se busca los turnos, y se los ordena de manera ascendente segun la fecha asignada. Se almacena en turnos.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
-
-        columnas = ["DNI", "Nombre", "ID Turno", "Hora", "Estado"] #Se crea el encabezado.
-        filas = [] #Se crea el array de filas.
-
+        columnas = ["DNI", "Nombre", "ID Turno", "Fecha", "Hora", "Estado"]
+        filas = []
         for t in turnos:
             filas.append([
                 t.persona.dni,
                 t.persona.nombre,
                 t.id,
+                t.fecha,
                 t.hora.strftime("%H:%M"),
                 t.estado.value,
-            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
+            ])
 
-        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
-        archivo = os.path.join("PDF", f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
-        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        return FileResponse(archivo, media_type="application/pdf", filename=f"turnos_{fecha.day}-{fecha.month}-{fecha.year}.pdf") #Se descarga el archivo en el buscador web
+        titulo = f"Turnos del día {fecha.isoformat()}"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = f"turnos_{fecha.isoformat()}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
+
     except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
-# 26.
-@app.get("/reportes/turnos-cancelados-mes-actual-pdf") 
-def turnos_cancelados_mes_actual_pdf(db: Session = Depends(get_db)): #Se pide una sesión de base de datos.
+# 27
+@app.get("/reportes/pdf/turnos-cancelados-por-mes")
+def pdf_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
+    """
+    PDF con turnos cancelados en el mes en curso.
+    """
     try:
-        hoy = date.today() #Se obtiene la fecha actual.
-        inicio = hoy.replace(day=1) #primer día del mes actual.
-        fin = inicio.replace(month=inicio.month + 1) if inicio.month < 12 else inicio.replace(
-            year=inicio.year + 1, month=1
-        ) #Primer día del mes siguiente. Si el mes es de 1 a 11 sumamos 1 al mes sino si es diciembre (12) pasamos a enero del año siguiente.
+        hoy = date.today()
+        inicio = hoy.replace(day=1)
+        fin = inicio + relativedelta(months=1)
 
-        try:
-            turnos = (
-                db.query(Turno)
-                .filter(
-                    Turno.estado == EstadoTurno.cancelado,
-                    Turno.fecha >= inicio,
-                    Turno.fecha < fin
-                )
-                .order_by(Turno.fecha.asc(), Turno.hora.asc())
-                .all()
-            ) #Se busca los turnos dentro del rango de dias del mes que sean cancelados y de manera ascendente en fecha y hora.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando turnos: {e}") #Se tira una excepcion si hay un error con codigo 500.
-        
-        if not turnos:  
-            raise HTTPException(status_code=404, detail="No hay turnos cancelados en este mes")
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(
+                Turno.estado == EstadoTurno.cancelado,
+                Turno.fecha >= inicio,
+                Turno.fecha < fin,
+            )
+            .order_by(Turno.fecha.asc(), Turno.hora.asc())
+            .all()
+        )
 
-        columnas = ["ID", "DNI", "Fecha", "Hora"] #Se crea el encabezado.
-        filas = [] #Se crea el array de filas.
-
+        columnas = ["ID Turno", "DNI", "Nombre", "Fecha", "Hora"]
+        filas = []
         for t in turnos:
             filas.append([
                 t.id,
                 t.persona.dni,
+                t.persona.nombre,
                 t.fecha,
                 t.hora.strftime("%H:%M"),
-            ]) #Se muestra en un array (filas) con los turnos siguiendo el formato asignado en este bucle for.
+            ])
 
-        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
-        archivo = os.path.join("PDF", "turnos_cancelados_mes_actual.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
-        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        return FileResponse(archivo, media_type="application/pdf", filename="turnos_cancelados_mes_actual.pdf") #Se descarga el archivo en el buscador web
+        titulo = f"Turnos cancelados del mes {inicio.month}/{inicio.year}"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = "turnos_cancelados_mes_actual.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
+
     except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
-# 27.
-@app.get("/reportes/estado-personas-habilitadas-pdf")
-def estado_personas_habilitadas_pdf(habilitada: bool, db: Session = Depends(get_db)): #Se pide de parametro "habilitada" un booleano y una sesión de base de datos.
-
-    if habilitada is False:
-        raise HTTPException(status_code=400, detail="Debe ser 'True' el valor de 'habilitada'") #Se tira una excepcion 400 ya que habilitada es "false".
-
+# 28
+@app.get("/reportes/pdf/turnos-por-persona")
+def pdf_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
+    """
+    PDF con los turnos de una persona, con título y tabla.
+    """
     try:
-        try:
-            personas = (
-                db.query(Persona)
-                .filter(Persona.habilitado == habilitada)
-                .order_by(Persona.id.asc())
-                .all() 
-            ) #Se busca a las personas "habilitadas" y se las ordena de manera ascendente.
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error consultando personas: {e}") #Se tira una excepcion si hay un error con codigo 500.
+        persona = persona_por_dni_o_404(db, dni)
 
-        columnas = ["DNI", "Nombre", "Email", "Teléfono"] #Se crea el encabezado.
-        filas = [] #Se crea el array de filas.
+        turnos = (
+            db.query(Turno)
+            .filter(Turno.persona_id == persona.id)
+            .order_by(Turno.fecha.desc(), Turno.hora.desc())
+            .all()
+        )
 
+        columnas = ["ID", "Fecha", "Hora", "Estado"]
+        filas = []
+        for t in turnos:
+            filas.append([
+                t.id,
+                t.fecha,
+                t.hora.strftime("%H:%M"),
+                t.estado.value,
+            ])
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        titulo = f"Turnos de {persona.nombre} (DNI: {persona.dni})"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = f"turnos_{persona.nombre}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 29
+@app.get("/reportes/pdf/turnos-cancelados")
+def pdf_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db)):
+    """
+    PDF con personas que tienen al menos 'min' turnos cancelados en los últimos 6 meses.
+    """
+    try:
+        hoy = date.today()
+        hace_6_meses = hoy - timedelta(days=180)
+
+        resultados = (
+            db.query(
+                Persona.dni,
+                Persona.nombre,
+                func.count(Turno.id).label("cantidad_cancelados"),
+            )
+            .join(Turno)
+            .filter(
+                Turno.estado == EstadoTurno.cancelado,
+                Turno.fecha >= hace_6_meses,
+                Turno.fecha <= hoy,
+            )
+            .group_by(Persona.id)
+            .having(func.count(Turno.id) >= min)
+            .order_by(func.count(Turno.id).desc())
+            .all()
+        )
+
+        columnas = ["DNI", "Nombre", "Cancelados últimos 6 meses"]
+        filas = []
+        for dni_persona, nombre, cant in resultados:
+            filas.append([dni_persona, nombre, cant])
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        titulo = f"Personas con {min} o más turnos cancelados en los últimos 6 meses"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = f"personas_con_{min}_o_mas_cancelados.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 30
+@app.get("/reportes/pdf/turnos-confirmados")
+def pdf_turnos_confirmados(
+    desde: date,
+    hasta: date,
+    db: Session = Depends(get_db),
+):
+    """
+    PDF con turnos confirmados entre dos fechas.
+    """
+    try:
+        turnos = (
+            db.query(Turno)
+            .join(Persona)
+            .filter(
+                Turno.estado == EstadoTurno.confirmado,
+                Turno.fecha >= desde,
+                Turno.fecha <= hasta,
+            )
+            .order_by(Turno.fecha.asc(), Turno.hora.asc())
+            .all()
+        )
+
+        columnas = ["DNI", "Nombre", "ID Turno", "Fecha", "Hora"]
+        filas = []
+        for t in turnos:
+            filas.append([
+                t.persona.dni,
+                t.persona.nombre,
+                t.id,
+                t.fecha,
+                t.hora.strftime("%H:%M"),
+            ])
+
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
+
+        titulo = f"Turnos confirmados entre {desde} y {hasta}"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = f"turnos_confirmados_{desde}_a_{hasta}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+# 31
+@app.get("/reportes/pdf/estado-personas")
+def pdf_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
+    """
+    PDF con personas habilitadas o no habilitadas.
+    """
+    try:
+        personas = (
+            db.query(Persona)
+            .filter(Persona.habilitado == habilitada)
+            .order_by(Persona.id.asc())
+            .all()
+        )
+
+        columnas = ["DNI", "Nombre", "Email", "Teléfono", "Habilitado"]
+        filas = []
         for p in personas:
             filas.append([
                 p.dni,
                 p.nombre,
                 p.email,
                 p.telefono,
-            ]) #Se muestra en un array (filas) con las personas siguiendo el formato asignado en este bucle for.
+                "Sí" if p.habilitado else "No",
+            ])
 
-        os.makedirs("PDF", exist_ok=True) #Crea una carpeta "PDF" Si no existe en el directorio.
-        archivo = os.path.join("PDF", "estado_personas_habilitadas.pdf") #Crea el archivo .pdf y se guarda en la carptea "PDF".
-        escribir_lineas_en_pdf(columnas, filas, archivo) #Se envia a la funcion que esta en utils.py, la lista de columnas y filas, ademas de la ruta del archivo creado.
+        if not filas:
+            raise HTTPException(status_code=404, detail="No hay datos.")
 
-        return FileResponse(archivo, media_type="application/pdf", filename="estado_personas_habilitadas.pdf") #Se descarga el archivo en el buscador web
+        estado = "habilitadas" if habilitada else "no habilitadas"
+        titulo = f"Personas {estado}"
+        pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
+        stream = BytesIO(pdf_bytes)
+
+        filename = f"personas_{estado.replace(' ', '_')}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(stream, media_type="application/pdf", headers=headers)
 
     except HTTPException:
-        raise #Se tira alguna excepcion de HTTP si la hay.
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor") #Se tira una excepcion si hay un error con codigo 500.
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
