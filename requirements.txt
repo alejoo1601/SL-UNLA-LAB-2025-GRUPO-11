@@ -4,6 +4,7 @@ anyio==4.10.0
 borb==2.1.5
 click==8.3.0
 colorama==0.4.6
+dotenv==0.9.9
 fastapi==0.116.2
 greenlet==3.2.4
 h11==0.16.0
