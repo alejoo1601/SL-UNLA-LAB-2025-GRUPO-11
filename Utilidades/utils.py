@@ -27,15 +27,21 @@ load_dotenv()
 CSV_SEPARATOR: str = os.getenv("CSV_SEPARATOR", ";")
 REPORT_CSV_DIR: str = os.getenv("REPORT_CSV_DIR", "CSV")
 REPORT_PDF_DIR: str = os.getenv("REPORT_PDF_DIR", "PDF")
+HORA_MODELO: str = os.getenv("HORA_MODELO", "%H:%M")
+SLOT_START_STR = os.getenv("SLOT_START", "09:00")
+SLOT_END_STR = os.getenv("SLOT_END", "17:00")
+SLOT_STEP_MIN = int(os.getenv("SLOT_STEP_MIN", "30"))
+SLOT_START: time_cls = datetime.strptime(SLOT_START_STR, HORA_MODELO).time()
+SLOT_END: time_cls = datetime.strptime(SLOT_END_STR, HORA_MODELO).time()
+EMAIL_REGEX = os.getenv("EMAIL_REGEX")
+PDF_FILAS_POR_PAGINA = int(os.getenv("PDF_FILAS_POR_PAGINA", "25"))
 
 
 # --------- Sesión de base de datos --------- #
 
 def get_db():
-    """
-    Dependencia de FastAPI que abre una sesión de BD
-    y se asegura de cerrarla al final del request.
-    """
+# Dependencia de FastAPI que abre una sesión de BDy se asegura de cerrarla al final del request.
+    
     db = SessionLocal()
     try:
         yield db
@@ -45,14 +51,12 @@ def get_db():
 
 # --------- Validador de email --------- #
 
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_RE = re.compile(EMAIL_REGEX)
 
 
 def validar_email(email: str) -> None:
-    """
-    Valida el formato básico de un email.
-    Lanza HTTPException 422 si es inválido.
-    """
+# Valida el formato básico de un email. Lanza HTTPException 422 si es inválido.
+    
     if not EMAIL_RE.match(email or ""):
         raise HTTPException(
             status_code=422,
@@ -60,18 +64,12 @@ def validar_email(email: str) -> None:
         )
 
 
-# --------- Manejo de horarios de turnos --------- #
 
-# Franja horaria permitida para turnos (09:00 a 16:30)
-SLOT_START = time_cls(9, 0)
-SLOT_END = time_cls(17, 0)  # último inicio válido: 16:30
-SLOT_STEP_MIN = 30
 
 
 def _validar_slot(hora: time_cls) -> None:
-    """
-    Verifica que la hora sea múltiplo de 30 minutos dentro de la franja permitida.
-    """
+# Verifica que la hora sea múltiplo de 30 minutos dentro de la franja permitida.
+    
     if hora.minute not in (0, 30) or hora.second != 0 or hora.microsecond != 0:
         raise HTTPException(
             status_code=422,
@@ -90,11 +88,10 @@ def _validar_slot(hora: time_cls) -> None:
 
 
 def parsear_hora(hhmm: str) -> time_cls:
-    """
-    Parsea una hora en formato HH:MM, valida el slot y devuelve un objeto time.
-    """
+# Parsea una hora en formato HH:MM, valida el slot y devuelve un objeto time.
+    
     try:
-        hora = datetime.strptime(hhmm, "%H:%M").time()
+        hora = datetime.strptime(hhmm, HORA_MODELO).time()
     except ValueError:
         raise HTTPException(
             status_code=422,
@@ -105,10 +102,8 @@ def parsear_hora(hhmm: str) -> time_cls:
 
 
 def generar_slots_30min() -> List[str]:
-    """
-    Genera una lista de strings con todos los horarios válidos:
-    ['09:00', '09:30', ..., '16:30'].
-    """
+# Genera una lista de strings con todos los horarios válidos: ['09:00', '09:30', ..., '16:30'].
+    
     slots: List[str] = []
     h, m = SLOT_START.hour, SLOT_START.minute
     ultimo_inicio = (
@@ -116,7 +111,7 @@ def generar_slots_30min() -> List[str]:
     ).time()
 
     while True:
-        slots.append(f"{h:02d}:{m:02d}")
+        slots.append(time_cls(h, m).strftime(HORA_MODELO))
         m += SLOT_STEP_MIN
         if m >= 60:
             m -= 60
@@ -132,10 +127,8 @@ SLOTS_FIJOS = set(generar_slots_30min())
 # --------- Helpers de consulta --------- #
 
 def persona_por_dni_o_404(db: Session, dni: int) -> Persona:
-    """
-    Busca una persona por DNI.
-    Si no existe, lanza HTTPException 404.
-    """
+# Busca una persona por DNI. Si no existe, lanza HTTPException 404.
+
     persona = db.query(Persona).filter(Persona.dni == dni).first()
     if not persona:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
@@ -143,24 +136,16 @@ def persona_por_dni_o_404(db: Session, dni: int) -> Persona:
 
 
 def turno_o_404(db: Session, turno_id: int) -> Turno:
-    """
-    Busca un turno por ID.
-    Si no existe, lanza HTTPException 404.
-    """
+# Busca un turno por ID. Si no existe, lanza HTTPException 404.
+
     turno = db.get(Turno, turno_id)
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     return turno
 
-def generar_pdf_tabla(
-    columnas: Iterable[str],
-    filas: Iterable[Iterable[object]],
-    titulo: Optional[str] = None,
-) -> bytes:
-    """
-    Genera un PDF en memoria con un título opcional y una tabla de datos.
-    Devuelve los bytes del PDF para ser usados en un StreamingResponse.
-    """
+def generar_pdf_tabla(columnas: Iterable[str], filas: Iterable[Iterable[object]], titulo: Optional[str] = None,) -> bytes:
+# Genera un PDF en memoria con un título opcional y una tabla de datos. Devuelve los bytes del PDF para ser usados en un StreamingResponse.
+    
     try:
         doc = Document()
         page = Page()
@@ -203,3 +188,4 @@ def generar_pdf_tabla(
     except Exception as e:
         # Esto se transforma en HTTP 500 en el endpoint
         raise RuntimeError(f"Error generando PDF con tabla: {e}")
+    

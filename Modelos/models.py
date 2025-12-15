@@ -3,6 +3,15 @@ from sqlalchemy.orm import relationship
 from BaseDatos.database import engine, Base
 from datetime import date
 import enum
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ESTADO_TURNO_PENDIENTE: str = os.getenv("ESTADO_TURNO_PENDIENTE")
+ESTADO_TURNO_ASISTIDO: str = os.getenv("ESTADO_TURNO_ASISTIDO")
+ESTADO_TURNO_CONFIRMADO: str = os.getenv("ESTADO_TURNO_CONFIRMADO")
+ESTADO_TURNO_CANCELADO: str = os.getenv("ESTADO_TURNO_CANCELADO")
 
 class Persona(Base):
     __tablename__ = "personas"
@@ -29,10 +38,10 @@ class Persona(Base):
         return edad
 
 class EstadoTurno(str, enum.Enum):
-    pendiente = "pendiente"
-    cancelado = "cancelado"
-    confirmado = "confirmado"
-    asistido = "asistido"
+    pendiente = ESTADO_TURNO_PENDIENTE
+    cancelado = ESTADO_TURNO_ASISTIDO
+    confirmado = ESTADO_TURNO_CONFIRMADO
+    asistido = ESTADO_TURNO_CANCELADO
 
 class Turno(Base):
     __tablename__ = "turnos"

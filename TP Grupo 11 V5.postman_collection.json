@@ -438,7 +438,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/reportes/turnos-confirmados?desde={{fecha_desde}}&hasta={{fecha_hasta}}&tamaño=3&page=1",
+							"raw": "{{base_url}}/reportes/turnos-confirmados?desde={{fecha_desde}}&hasta={{fecha_hasta}}&tamanio=3&pagina=1",
 							"host": [
 								"{{base_url}}"
 							],
@@ -460,7 +460,7 @@
 									"value": "3"
 								},
 								{
-									"key": "page",
+									"key": "pagina",
 									"value": "1"
 								}
 							]
@@ -623,12 +623,14 @@
 				"request": {
 					"method": "GET",
 					"url": {
-					"raw": "{{base_url}}/reportes/pdf/turnos-confirmados?desde={{desde}}&hasta={{hasta}}",
+					"raw": "{{base_url}}/reportes/pdf/turnos-confirmados?desde={{desde}}&hasta={{hasta}}&tamanio=3&pagina=1",
 					"host": ["{{base_url}}"],
 					"path": ["reportes", "pdf", "turnos-confirmados"],
 					"query": [
 						{ "key": "desde", "value": "{{desde}}" },
-						{ "key": "hasta", "value": "{{hasta}}" }
+						{ "key": "hasta", "value": "{{hasta}}" },
+						{ "key": "tamanio", "value": "3"},
+						{ "key": "pagina", "value": "1"}
 					]
 					}
 				}

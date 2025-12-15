@@ -27,11 +27,35 @@ from sqlalchemy import func
 from datetime import date
 from dateutil.relativedelta import relativedelta
 import locale
+from dotenv import load_dotenv
+
+# Carga variables de entorno
+load_dotenv()
+
+# Configuración de reportes desde .env
+MESES = os.getenv("MESES","").split(",")
+HORA_MODELO: str = os.getenv("HORA_MODELO", "%H:%M")
+UTF8: str = os.getenv("UTF8")
+
+MSG_SIN_DATOS = os.getenv("MSG_SIN_DATOS")
 
 CSV_SEPARATOR = os.getenv("CSV_SEPARATOR")
-MESES = os.getenv("MESES","").split(",")
+CSV_TURNOS_CANCELADOS_MES = os.getenv("CSV_TURNOS_CANCELADOS_MES")
 
-app = FastAPI(title="TP Grupo 11", version="1.9.1")
+PDF_TURNOS_CANCELADOS_MES = os.getenv("PDF_TURNOS_CANCELADOS_MES")
+
+COLUMNAS_TURNOS_POR_FECHA = os.getenv("COL_PDF_TURNOS_POR_FECHA", "").split(",")
+COLUMNAS_TURNOS_CANCELADOS_POR_MES = os.getenv("COL_PDF_TURNOS_CANCELADOS_POR_MES", "").split(",")
+COLUMNAS_TURNOS_POR_PERSONA = os.getenv("COL_PDF_TURNOS_POR_PERSONA", "").split(",")
+COLUMNAS_TURNOS_CANCELADOS_PERSONAS = os.getenv("COL_PDF_TURNOS_CANCELADOS_PERSONAS", "").split(",")
+COLUMNAS_TURNOS_CONFIRMADOS = os.getenv("COL_PDF_TURNOS_CONFIRMADOS", "").split(",")
+COLUMNAS_ESTADO_PERSONAS = os.getenv("COL_PDF_ESTADO_PERSONAS", "").split(",")
+SI = os.getenv("SI")
+NO = os.getenv("NO")
+VARIABLE_HABILITADA = os.getenv("VARIABLE_HABILITADA")
+VARIABLE_NO_HABILITADA = os.getenv("VARIABLE_NO_HABILITADA")
+
+app = FastAPI(title="TP Grupo 11", version="1.9.2")
 
 locale.setlocale(locale.LC_TIME, "")
 
@@ -259,7 +283,7 @@ def crear_turno(datos: TurnoIn, db: Session = Depends(get_db)):
         return TurnoOut(
             id=turno.id,
             fecha=turno.fecha,
-            hora=turno.hora.strftime("%H:%M"),
+            hora=turno.hora.strftime(HORA_MODELO),
             estado=turno.estado,
             persona_dni=persona.dni
         )
@@ -303,7 +327,7 @@ def listar_turnos(
             TurnoOut(
                 id=t.id,
                 fecha=t.fecha,
-                hora=t.hora.strftime("%H:%M"),
+                hora=t.hora.strftime(HORA_MODELO),
                 estado=t.estado,
                 persona_dni=t.persona.dni
             )
@@ -328,7 +352,7 @@ def obtener_turno(turno_id: int, db: Session = Depends(get_db)):
         return TurnoOut(
             id=turno.id,
             fecha=turno.fecha,
-            hora=turno.hora.strftime("%H:%M"),
+            hora=turno.hora.strftime(HORA_MODELO),
             estado=turno.estado,
             persona_dni=turno.persona.dni
         )
@@ -387,7 +411,7 @@ def actualizar_turno(turno_id: int, cambios: TurnoUpdate, db: Session = Depends(
         return TurnoOut(
             id=t.id,
             fecha=t.fecha,
-            hora=t.hora.strftime("%H:%M"),
+            hora=t.hora.strftime(HORA_MODELO),
             estado=t.estado,
             persona_dni=t.persona.dni
         )
@@ -439,7 +463,7 @@ def turnos_disponibles(fecha: date, db: Session = Depends(get_db)):
             .all()
         )
 
-        ocupados = {t.hora.strftime("%H:%M") for t in bloquean}
+        ocupados = {t.hora.strftime(HORA_MODELO) for t in bloquean}
         disponibles = sorted(todos - ocupados)
 
         return {"fecha": fecha.isoformat(), "horarios_disponibles": disponibles}
@@ -473,7 +497,7 @@ def cancelar_turno(turno_id: int, db: Session = Depends(get_db)):
         return TurnoOut(
             id=t.id,
             fecha=t.fecha,
-            hora=t.hora.strftime("%H:%M"),
+            hora=t.hora.strftime(HORA_MODELO),
             estado=t.estado,
             persona_dni=t.persona.dni,
         )
@@ -509,7 +533,7 @@ def confirmar_turno(turno_id: int, db: Session = Depends(get_db)):
         return TurnoOut(
             id=t.id,
             fecha=t.fecha,
-            hora=t.hora.strftime("%H:%M"),
+            hora=t.hora.strftime(HORA_MODELO),
             estado=t.estado,
             persona_dni=t.persona.dni,
         )
@@ -549,7 +573,7 @@ def reportes_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
                     {"dni": clave[0], "nombre": clave[1], "turnos": lista_actual}
                 )
             lista_actual.append(
-                {"id": t.id, "hora": t.hora.strftime("%H:%M"), "estado": t.estado}
+                {"id": t.id, "hora": t.hora.strftime(HORA_MODELO), "estado": t.estado}
             )
 
         return {"fecha": fecha.isoformat(), "personas": personas}
@@ -583,7 +607,7 @@ def reportes_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
                 {
                     "id": t.id,
                     "fecha": t.fecha,
-                    "hora": t.hora.strftime("%H:%M"),
+                    "hora": t.hora.strftime(HORA_MODELO),
                     "estado": t.estado,
                 }
             )
@@ -630,7 +654,10 @@ def reportes_cancelados_mes(db: Session = Depends(get_db)):
         )
         resumen = [{"fecha": f, "cantidad": c} for (f, c) in resumen_rows]
 
-        mes = hoy.strftime("%B")
+        if len(MESES) != 12:
+            raise RuntimeError("La variable de entorno MESES debe contener 12 meses")
+        
+        mes = MESES[hoy.month - 1]
 
         return {
             "anio": hoy.year,
@@ -642,7 +669,7 @@ def reportes_cancelados_mes(db: Session = Depends(get_db)):
                     "id": t.id,
                     "persona_dni": t.persona.dni,
                     "fecha": t.fecha,
-                    "hora": t.hora.strftime("%H:%M"),
+                    "hora": t.hora.strftime(HORA_MODELO),
                     "estado": t.estado,
                 }
                 for t in turnos
@@ -687,7 +714,7 @@ def reportes_personas_con_cancelados(min: int = 5, db: Session = Depends(get_db)
                         {
                             "id": t.id,
                             "fecha": t.fecha,
-                            "hora": t.hora.strftime("%H:%M"),
+                            "hora": t.hora.strftime(HORA_MODELO),
                             "estado": t.estado,
                         }
                         for t in t_list
@@ -740,7 +767,7 @@ def reportes_turnos_confirmados(
             {
                 "id": t.id,
                 "fecha": t.fecha,
-                "hora": t.hora.strftime("%H:%M"),
+                "hora": t.hora.strftime(HORA_MODELO),
                 "persona_dni": t.persona.dni,
             }
             for t in items
@@ -804,9 +831,6 @@ def reportes_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
 # 20 GET /reportes/csv/turnos-por-fecha?fecha=YYYY-MM-DD
 @app.get("/reportes/csv/turnos-por-fecha")
 def csv_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
-    """
-    CSV con los turnos de una fecha.
-    """
     try:
         turnos = (
             db.query(Turno)
@@ -823,18 +847,18 @@ def csv_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
                 "nombre": t.persona.nombre,
                 "id_turno": t.id,
                 "fecha": t.fecha.isoformat(),
-                "hora": t.hora.strftime("%H:%M"),
+                "hora": t.hora.strftime(HORA_MODELO),
                 "estado": t.estado.value,
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
         filename = f"turnos_{fecha.isoformat()}.csv"
@@ -851,9 +875,6 @@ def csv_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
 # 21 GET /reportes/csv/turnos-cancelados-por-mes
 @app.get("/reportes/csv/turnos-cancelados-por-mes")
 def csv_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
-    """
-    CSV con todos los turnos cancelados en el mes en curso.
-    """
     try:
         hoy = date.today()
         inicio = hoy.replace(day=1)
@@ -878,20 +899,20 @@ def csv_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
                 "dni": t.persona.dni,
                 "nombre": t.persona.nombre,
                 "fecha": t.fecha.isoformat(),
-                "hora": t.hora.strftime("%H:%M"),
+                "hora": t.hora.strftime(HORA_MODELO),
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
-        filename = "turnos_cancelados_mes_actual.csv"
+        filename = CSV_TURNOS_CANCELADOS_MES
         headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
         return StreamingResponse(stream, media_type="text/csv", headers=headers)
     except HTTPException:
@@ -905,9 +926,6 @@ def csv_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
 # 22 GET /reportes/csv/turnos-por-persona?dni=12345678
 @app.get("/reportes/csv/turnos-por-persona")
 def csv_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
-    """
-    CSV con todos los turnos de una persona.
-    """
     try:
         persona = persona_por_dni_o_404(db, dni)
 
@@ -923,18 +941,18 @@ def csv_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
             filas.append({
                 "id": t.id,
                 "fecha": t.fecha.isoformat(),
-                "hora": t.hora.strftime("%H:%M"),
+                "hora": t.hora.strftime(HORA_MODELO),
                 "estado": t.estado.value,
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
         filename = f"turnos_{persona.nombre}.csv"
@@ -952,9 +970,6 @@ def csv_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
 # 23 GET /reportes/csv/turnos-cancelados?min=5
 @app.get("/reportes/csv/turnos-cancelados")
 def csv_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db)):
-    """
-    CSV con personas que tienen al menos 'min' turnos cancelados en los últimos 6 meses.
-    """
     try:
         hoy = date.today()
         hace_6_meses = hoy - timedelta(days=180)  # aproximación 6 meses
@@ -986,13 +1001,13 @@ def csv_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
         filename = f"personas_con_{min}_o_mas_cancelados.csv"
@@ -1014,9 +1029,6 @@ def csv_turnos_confirmados(
     hasta: date,
     db: Session = Depends(get_db),
 ):
-    """
-    CSV con turnos confirmados entre dos fechas (inclusive).
-    """
     try:
         turnos = (
             db.query(Turno)
@@ -1037,17 +1049,17 @@ def csv_turnos_confirmados(
                 "nombre": t.persona.nombre,
                 "id_turno": t.id,
                 "fecha": t.fecha.isoformat(),
-                "hora": t.hora.strftime("%H:%M"),
+                "hora": t.hora.strftime(HORA_MODELO),
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
         filename = f"turnos_confirmados_{desde}_a_{hasta}.csv"
@@ -1065,9 +1077,6 @@ def csv_turnos_confirmados(
 # 25 GET /reportes/csv/estado-personas?habilitada=true/false
 @app.get("/reportes/csv/estado-personas")
 def csv_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
-    """
-    CSV con listado de personas según su estado de habilitación.
-    """
     try:
         personas = (
             db.query(Persona)
@@ -1087,13 +1096,13 @@ def csv_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
             })
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         df = pd.DataFrame(filas)
 
         buffer = StringIO()
         df.to_csv(buffer, sep=CSV_SEPARATOR, index=False)
-        csv_bytes = buffer.getvalue().encode("utf-8")
+        csv_bytes = buffer.getvalue().encode(UTF8)
         stream = BytesIO(csv_bytes)
 
         estado = "habilitadas" if habilitada else "no_habilitadas"
@@ -1115,9 +1124,6 @@ def csv_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
 # 26
 @app.get("/reportes/pdf/turnos-por-fecha")
 def pdf_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
-    """
-    PDF con los turnos de una fecha (tabla).
-    """
     try:
         turnos = (
             db.query(Turno)
@@ -1127,7 +1133,7 @@ def pdf_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
             .all()
         )
 
-        columnas = ["DNI", "Nombre", "ID Turno", "Fecha", "Hora", "Estado"]
+        columnas = COLUMNAS_TURNOS_POR_FECHA
         filas = []
         for t in turnos:
             filas.append([
@@ -1135,12 +1141,12 @@ def pdf_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
                 t.persona.nombre,
                 t.id,
                 t.fecha,
-                t.hora.strftime("%H:%M"),
+                t.hora.strftime(HORA_MODELO),
                 t.estado.value,
             ])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         titulo = f"Turnos del día {fecha.isoformat()}"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
@@ -1161,9 +1167,6 @@ def pdf_turnos_por_fecha(fecha: date, db: Session = Depends(get_db)):
 # 27
 @app.get("/reportes/pdf/turnos-cancelados-por-mes")
 def pdf_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
-    """
-    PDF con turnos cancelados en el mes en curso.
-    """
     try:
         hoy = date.today()
         inicio = hoy.replace(day=1)
@@ -1181,7 +1184,7 @@ def pdf_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
             .all()
         )
 
-        columnas = ["ID Turno", "DNI", "Nombre", "Fecha", "Hora"]
+        columnas = COLUMNAS_TURNOS_CANCELADOS_POR_MES
         filas = []
         for t in turnos:
             filas.append([
@@ -1189,17 +1192,17 @@ def pdf_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
                 t.persona.dni,
                 t.persona.nombre,
                 t.fecha,
-                t.hora.strftime("%H:%M"),
+                t.hora.strftime(HORA_MODELO),
             ])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         titulo = f"Turnos cancelados del mes {inicio.month}/{inicio.year}"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
         stream = BytesIO(pdf_bytes)
 
-        filename = "turnos_cancelados_mes_actual.pdf"
+        filename = PDF_TURNOS_CANCELADOS_MES
         headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
         return StreamingResponse(stream, media_type="application/pdf", headers=headers)
 
@@ -1214,9 +1217,6 @@ def pdf_turnos_cancelados_por_mes(db: Session = Depends(get_db)):
 # 28
 @app.get("/reportes/pdf/turnos-por-persona")
 def pdf_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
-    """
-    PDF con los turnos de una persona, con título y tabla.
-    """
     try:
         persona = persona_por_dni_o_404(db, dni)
 
@@ -1227,18 +1227,18 @@ def pdf_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
             .all()
         )
 
-        columnas = ["ID", "Fecha", "Hora", "Estado"]
+        columnas = COLUMNAS_TURNOS_POR_PERSONA
         filas = []
         for t in turnos:
             filas.append([
                 t.id,
                 t.fecha,
-                t.hora.strftime("%H:%M"),
+                t.hora.strftime(HORA_MODELO),
                 t.estado.value,
             ])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         titulo = f"Turnos de {persona.nombre} (DNI: {persona.dni})"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
@@ -1259,9 +1259,6 @@ def pdf_turnos_por_persona(dni: int, db: Session = Depends(get_db)):
 # 29
 @app.get("/reportes/pdf/turnos-cancelados")
 def pdf_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db)):
-    """
-    PDF con personas que tienen al menos 'min' turnos cancelados en los últimos 6 meses.
-    """
     try:
         hoy = date.today()
         hace_6_meses = hoy - timedelta(days=180)
@@ -1284,13 +1281,13 @@ def pdf_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db
             .all()
         )
 
-        columnas = ["DNI", "Nombre", "Cancelados últimos 6 meses"]
+        columnas = COLUMNAS_TURNOS_CANCELADOS_PERSONAS
         filas = []
         for dni_persona, nombre, cant in resultados:
             filas.append([dni_persona, nombre, cant])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
         titulo = f"Personas con {min} o más turnos cancelados en los últimos 6 meses"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
@@ -1313,13 +1310,17 @@ def pdf_turnos_cancelados_por_persona(min: int = 5, db: Session = Depends(get_db
 def pdf_turnos_confirmados(
     desde: date,
     hasta: date,
+    tamanio: int,
+    pagina: int,
     db: Session = Depends(get_db),
 ):
-    """
-    PDF con turnos confirmados entre dos fechas.
-    """
     try:
-        turnos = (
+        if pagina < 1:
+            pagina = 1
+        if tamanio < 1:
+            tamanio = 50
+
+        q = (
             db.query(Turno)
             .join(Persona)
             .filter(
@@ -1328,10 +1329,12 @@ def pdf_turnos_confirmados(
                 Turno.fecha <= hasta,
             )
             .order_by(Turno.fecha.asc(), Turno.hora.asc())
-            .all()
         )
 
-        columnas = ["DNI", "Nombre", "ID Turno", "Fecha", "Hora"]
+        total = q.count()
+        turnos = q.offset((pagina - 1) * tamanio).limit(tamanio).all()
+
+        columnas = COLUMNAS_TURNOS_CONFIRMADOS
         filas = []
         for t in turnos:
             filas.append([
@@ -1339,17 +1342,17 @@ def pdf_turnos_confirmados(
                 t.persona.nombre,
                 t.id,
                 t.fecha,
-                t.hora.strftime("%H:%M"),
+                t.hora.strftime(HORA_MODELO),
             ])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
-        titulo = f"Turnos confirmados entre {desde} y {hasta}"
+        titulo = f"Turnos confirmados entre {desde} y {hasta} (página {pagina}) - Total: {total}"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
         stream = BytesIO(pdf_bytes)
 
-        filename = f"turnos_confirmados_{desde}_a_{hasta}.pdf"
+        filename = f"turnos_confirmados_{desde}_a_{hasta}_p{pagina}.pdf"
         headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
         return StreamingResponse(stream, media_type="application/pdf", headers=headers)
 
@@ -1361,12 +1364,10 @@ def pdf_turnos_confirmados(
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
+
 # 31
 @app.get("/reportes/pdf/estado-personas")
 def pdf_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
-    """
-    PDF con personas habilitadas o no habilitadas.
-    """
     try:
         personas = (
             db.query(Persona)
@@ -1375,7 +1376,10 @@ def pdf_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
             .all()
         )
 
-        columnas = ["DNI", "Nombre", "Email", "Teléfono", "Habilitado"]
+        if len(COLUMNAS_ESTADO_PERSONAS) != 5:
+            raise RuntimeError("La variable COLUMNAS_ESTADO_PERSONAS debe tener 5 valores separados por coma")
+
+        columnas = columnas = COLUMNAS_ESTADO_PERSONAS
         filas = []
         for p in personas:
             filas.append([
@@ -1383,13 +1387,13 @@ def pdf_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
                 p.nombre,
                 p.email,
                 p.telefono,
-                "Sí" if p.habilitado else "No",
+                SI if p.habilitado else NO,
             ])
 
         if not filas:
-            raise HTTPException(status_code=404, detail="No hay datos.")
+            raise HTTPException(status_code=404, detail=MSG_SIN_DATOS)
 
-        estado = "habilitadas" if habilitada else "no habilitadas"
+        estado = VARIABLE_HABILITADA if habilitada else VARIABLE_NO_HABILITADA
         titulo = f"Personas {estado}"
         pdf_bytes = generar_pdf_tabla(columnas, filas, titulo=titulo)
         stream = BytesIO(pdf_bytes)
@@ -1404,3 +1408,4 @@ def pdf_estado_personas(habilitada: bool, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
